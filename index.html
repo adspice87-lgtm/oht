@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Task</title>
+<style>
+:root{
+  --bg:#F5F7FB;
+  --card:#FFFFFF;
+  --card2:#EDF1F7;
+  --sep:#E2E8F0;
+  --txt:#0E1726;
+  --txt2:#6B7686;
+  --accent:#2563EB;
+  --green:#16A34A;
+  --red:#E11D48;
+  --radius:16px;
+  --shadow:0 2px 10px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.05);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:var(--bg);color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
+  display:flex;justify-content:center;
+}
+.phone{width:100%;max-width:430px;min-height:100vh;padding:max(20px,env(safe-area-inset-top)) 20px max(28px,env(safe-area-inset-bottom));position:relative}
+.screen{display:none}
+.screen.active{display:block;animation:up .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.large-title{font-size:34px;font-weight:800;letter-spacing:.2px;line-height:1.12;margin-top:6px}
+.eyebrow{font-size:13px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.sub{color:var(--txt2);font-size:15px;margin-top:10px;line-height:1.45}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-top:14px;box-shadow:var(--shadow)}
+textarea{
+  width:100%;background:var(--card);color:var(--txt);border:none;border-radius:var(--radius);
+  padding:16px;font:inherit;font-size:17px;resize:none;outline:none;min-height:96px;box-shadow:var(--shadow);
+}
+textarea::placeholder{color:var(--txt2)}
+textarea:focus{box-shadow:0 0 0 2px var(--accent)}
+.btn{
+  display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:14px;
+  font:inherit;font-size:17px;font-weight:700;padding:16px;margin-top:16px;cursor:pointer;
+  transition:transform .1s,opacity .15s;
+}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.45}
+.btn.gray{background:#fff;color:var(--txt);box-shadow:var(--shadow)}
+.btn.subtle{background:transparent;color:var(--accent);padding:12px;margin-top:8px;font-weight:600;font-size:15px}
+.btn.green{background:var(--green);color:#fff}
+.seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;margin-top:14px}
+.seg button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;border:none;border-radius:10px;color:var(--txt2);font:inherit;font-size:14px;font-weight:600;padding:11px 6px;cursor:pointer;transition:all .15s}
+.seg button.sel svg{color:var(--accent)}
+.optrow{display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer;user-select:none;padding:4px 2px}
+.cbx{width:24px;height:24px;min-width:24px;border-radius:7px;border:2px solid var(--sep);background:#fff;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.cbx.on{background:var(--accent);border-color:var(--accent)}
+.cbx.on::after{content:'';width:6px;height:11px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg);margin-top:-2px}
+.optlbl{font-size:15px;font-weight:500;color:var(--txt2)}
+.diff-hidden{display:none}
+#diffInput{min-height:80px;margin-top:10px;animation:up .25s ease-out}
+.seg button.sel{background:#fff;color:var(--txt);box-shadow:0 1px 4px rgba(15,23,42,.12)}
+.stats{display:flex;gap:10px;margin-top:16px}
+.stat{flex:1;background:var(--card);border-radius:var(--radius);padding:12px;text-align:center;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:22px;font-weight:800;color:var(--accent)}
+.stat span{font-size:11px;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+/* loader */
+.loader{display:flex;flex-direction:column;align-items:center;gap:18px;padding:70px 0;text-align:center}
+.sonar .ping{transform-origin:50% 50%;animation:ping 1.6s ease-out infinite}
+.sonar .p2{animation-delay:.4s}
+@keyframes ping{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1.1);opacity:0}}
+.loader p{color:var(--txt2);font-size:15px}
+/* plan list */
+.micro{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:10px;display:flex;gap:12px;cursor:pointer;user-select:none;transition:opacity .15s;box-shadow:var(--shadow)}
+.micro .check{width:26px;height:26px;min-width:26px;border-radius:50%;border:2px solid var(--sep);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;margin-top:1px;transition:all .15s}
+.micro.checked .check{background:var(--green);border-color:var(--green)}
+.micro.checked{opacity:.55}
+.micro.checked .t{text-decoration:line-through;color:var(--txt2)}
+.micro.first{border:2px solid rgba(37,99,235,.45);box-shadow:0 0 0 4px rgba(37,99,235,.08), var(--shadow)}
+.micro .num{font-size:15px;font-weight:800;color:var(--accent);min-width:22px;padding-top:1px}
+.micro .t{font-size:16px;font-weight:600;line-height:1.3}
+.micro .fm{font-size:13px;color:var(--txt2);margin-top:5px;line-height:1.4}
+.micro .min{margin-left:auto;font-size:13px;font-weight:700;color:var(--txt2);white-space:nowrap;padding-top:2px}
+/* fix panel */
+.fixpanel{display:none;margin-top:12px}
+.fixpanel.open{display:block;animation:up .25s ease-out}
+/* exec */
+.progress-dots{display:flex;gap:6px;margin-top:8px}
+.progress-dots i{flex:1;height:4px;border-radius:2px;background:var(--sep)}
+.progress-dots i.done{background:var(--green)}
+.progress-dots i.now{background:var(--accent)}
+.exec-title{font-size:27px;font-weight:800;line-height:1.15;margin-top:18px}
+.firstmove{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:14px;font-size:15px;line-height:1.45;box-shadow:var(--shadow);border-left:4px solid var(--accent)}
+.firstmove b{color:var(--accent);display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.timer-wrap{display:flex;justify-content:center;margin-top:26px}
+.ring{position:relative;width:230px;height:230px}
+.ring svg{transform:rotate(-90deg)}
+.ring .time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.time.red{color:var(--red);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.35}}
+.row{display:flex;gap:10px}
+.row .btn{margin-top:14px}
+.done-emoji{font-size:72px;text-align:center;margin-top:50px}
+.done-h{font-size:34px;font-weight:800;text-align:center;margin-top:14px}
+.done-sub{text-align:center;color:var(--txt2);margin-top:10px;font-size:15px;padding:0 16px;line-height:1.45}
+/* topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;height:44px;margin-bottom:4px}
+.navbtn{background:#fff;border:none;border-radius:50%;width:38px;height:38px;font-size:18px;font-weight:700;color:var(--accent);cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;transition:transform .1s}
+.navbtn:active{transform:scale(.92)}
+.navbtn[hidden]{display:none}
+/* onboarding */
+.onb{position:fixed;inset:0;background:var(--bg);z-index:50;display:none;justify-content:center}
+.onb.open{display:flex}
+.onb-inner{width:100%;max-width:430px;padding:max(24px,env(safe-area-inset-top)) 24px max(28px,env(safe-area-inset-bottom));display:flex;flex-direction:column}
+.onb-skip{align-self:flex-end;background:none;border:none;color:var(--txt2);font:inherit;font-size:15px;font-weight:600;cursor:pointer;padding:8px}
+.onb-slide{flex:1;display:none;flex-direction:column;justify-content:center;text-align:center;animation:up .3s ease-out}
+.onb-slide.active{display:flex}
+.onb-emoji{font-size:74px}
+.onb-h{font-size:28px;font-weight:800;margin-top:22px;color:var(--txt)}
+.onb-p{font-size:16px;color:var(--txt2);margin-top:12px;line-height:1.5;padding:0 8px}
+.onb-dots{display:flex;gap:8px;justify-content:center;margin:22px 0 6px}
+.onb-dots i{width:8px;height:8px;border-radius:50%;background:var(--sep);transition:all .2s}
+.onb-dots i.on{background:var(--accent);width:22px;border-radius:4px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="topbar">
+    <button class="navbtn" id="backBtn" onclick="goBack()" hidden aria-label="Wstecz">‹</button>
+    <span style="display:flex;align-items:center;gap:7px;font-size:15px;font-weight:800;color:var(--txt)"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="#2563EB" stroke-width="1.6" opacity=".25"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#2563EB" stroke-width="1.6" opacity=".55"/><circle cx="12" cy="12" r="3" fill="#2563EB"/></svg>Task</span>
+    <button class="navbtn" onclick="openOnboarding()" aria-label="Samouczek">?</button>
+  </div>
+
+  <!-- 1. WEJŚCIE -->
+  <section class="screen active" id="s-input">
+    <p class="eyebrow">Dziś</p>
+    <h1 class="large-title">Twój one hard task<br>na dziś?</h1>
+    <p class="sub">Jedna najtrudniejsza rzecz, którą odkładasz. Wpisz ją i jedziemy. Bez gadania.</p>
+    <div class="stats" id="stats" hidden>
+      <div class="stat"><b id="st-done">0</b><span>tasków</span></div>
+      <div class="stat"><b id="st-streak">0</b><span>seria</span></div>
+      <div class="stat"><b id="st-style">...</b><span>styl</span></div>
+    </div>
+    <div style="margin-top:18px">
+      <textarea id="taskInput" placeholder="np. Zadzwonić do 10 klientów z ofertą"></textarea>
+      <div class="seg">
+        <button id="optA" type="button" onclick="pickType('A')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Manualna</button>
+        <button id="optB" type="button" onclick="pickType('B')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Komputer</button>
+      </div>
+      <div class="optrow" id="diffToggle" onclick="toggleDiff()">
+        <span class="cbx" id="diffCbx"></span>
+        <span class="optlbl">Chcę opisać na czym polega trudność</span>
+      </div>
+      <textarea id="diffInput" class="diff-hidden" placeholder="Opisz na czym polega trudność"></textarea>
+      <button class="btn" id="startBtn" onclick="generatePlan()">Rozbij na mikro-taski</button>
+    </div>
+  </section>
+
+  <!-- 2. LOADER -->
+  <section class="screen" id="s-loading">
+    <div class="loader">
+      <svg class="sonar" width="86" height="86" viewBox="0 0 100 100" aria-hidden="true"><circle class="ping p1" cx="50" cy="50" r="44" fill="none" stroke="#2563EB" stroke-width="3"/><circle class="ping p2" cx="50" cy="50" r="30" fill="none" stroke="#2563EB" stroke-width="3"/><circle cx="50" cy="50" r="16" fill="none" stroke="#2563EB" stroke-width="3" opacity=".8"/><circle cx="50" cy="50" r="6" fill="#2563EB"/></svg>
+      <p id="loaderText">Rozbijam zadanie na mikro-kroki…</p>
+    </div>
+  </section>
+
+  <!-- 3. PLAN -->
+  <section class="screen" id="s-plan">
+    <p class="eyebrow">Plan ataku</p>
+    <h1 class="large-title" style="font-size:26px" id="planTaskTitle"></h1>
+    <p class="sub" id="planComment"></p>
+    <div id="planList"></div>
+    <button class="btn" id="startPlanBtn" onclick="startExecution()">Start ▸</button>
+    <button class="btn subtle" onclick="toggleFix()">Coś nie pasuje? Uzupełnij</button>
+    <div class="fixpanel" id="fixPanel">
+      <textarea id="fixInput" placeholder="Napisz co zmienić, np. „nie mam jeszcze listy numerów” albo „krok 2 jest niepotrzebny”"></textarea>
+      <button class="btn gray" onclick="regeneratePlan()">Przebuduj plan</button>
+    </div>
+  </section>
+
+  <!-- 4. WYKONANIE -->
+  <section class="screen" id="s-exec">
+    <p class="eyebrow" id="execProgress">Krok 1 z 5</p>
+    <div class="progress-dots" id="dots"></div>
+    <h2 class="exec-title" id="execTitle"></h2>
+    <div class="firstmove"><b>Pierwszy ruch</b><span id="execFirstMove"></span></div>
+    <div class="timer-wrap">
+      <div class="ring">
+        <svg width="230" height="230" viewBox="0 0 230 230">
+          <circle cx="115" cy="115" r="104" stroke="#E2E8F0" stroke-width="10" fill="none"/>
+          <circle id="ringFg" cx="115" cy="115" r="104" stroke="#2563EB" stroke-width="10" fill="none"
+            stroke-linecap="round" stroke-dasharray="653.4" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear"/>
+        </svg>
+        <div class="time" id="timerDisplay">10:00</div>
+      </div>
+    </div>
+    <button class="btn green" onclick="doneMicro()">✓ Zrobione</button>
+    <div class="row">
+      <button class="btn gray" onclick="addTime()">+5 min</button>
+      <button class="btn gray" onclick="skipMicro()">Pomiń</button>
+    </div>
+    <button class="btn subtle" onclick="backToPlan()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1" fill="currentColor"/><circle cx="3.5" cy="12" r="1" fill="currentColor"/><circle cx="3.5" cy="18" r="1" fill="currentColor"/></svg>Lista kroków / odznacz postęp</button>
+  </section>
+
+  <!-- 5. KONIEC -->
+  <section class="screen" id="s-done">
+    <div style="display:flex;justify-content:center;margin-top:50px"><svg class="sonar" width="86" height="86" viewBox="0 0 100 100" aria-hidden="true"><circle class="ping p1" cx="50" cy="50" r="44" fill="none" stroke="#2563EB" stroke-width="3"/><circle class="ping p2" cx="50" cy="50" r="30" fill="none" stroke="#2563EB" stroke-width="3"/><circle cx="50" cy="50" r="16" fill="none" stroke="#2563EB" stroke-width="3" opacity=".8"/><circle cx="50" cy="50" r="6" fill="#2563EB"/></svg></div>
+    <h1 class="done-h">One hard task zrobiony</h1>
+    <p class="done-sub">Najtrudniejsza rzecz dnia jest za Tobą. Reszta to już z górki.</p>
+    <div class="stats" id="statsDone"></div>
+    <button class="btn" onclick="resetApp()">Nowy dzień, nowy task</button>
+  </section>
+
+</div>
+
+<!-- ONBOARDING -->
+<div class="onb" id="onb">
+  <div class="onb-inner">
+    <button class="onb-skip" onclick="closeOnboarding()">Pomiń</button>
+    <div class="onb-slide active">
+      <div style="display:flex;justify-content:center"><svg class="sonar" width="86" height="86" viewBox="0 0 100 100" aria-hidden="true"><circle class="ping p1" cx="50" cy="50" r="44" fill="none" stroke="#2563EB" stroke-width="3"/><circle class="ping p2" cx="50" cy="50" r="30" fill="none" stroke="#2563EB" stroke-width="3"/><circle cx="50" cy="50" r="16" fill="none" stroke="#2563EB" stroke-width="3" opacity=".8"/><circle cx="50" cy="50" r="6" fill="#2563EB"/></svg></div>
+      <div class="onb-h">One hard task</div>
+      <div class="onb-p">Codziennie masz JEDNĄ trudną rzecz, którą odkładasz, bo wydaje się za duża. Wpisujesz tylko ją. Nic więcej.</div>
+    </div>
+    <div class="onb-slide">
+      <div style="display:flex;justify-content:center"><svg width="86" height="86" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="4.6" rx="2.3" fill="#2563EB"/><path d="M12 9.6v2.2m0 0l-1.7-1.7M12 11.8l1.7-1.7" stroke="#2563EB" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="2.6" rx="1.3" fill="#2563EB" opacity=".8"/><rect x="4" y="18" width="16" height="2.6" rx="1.3" fill="#2563EB" opacity=".5"/><rect x="4" y="22" width="16" height="1.6" rx="0.8" fill="#2563EB" opacity=".25"/></svg></div>
+      <div class="onb-h">AI tnie go na mikro-kroki</div>
+      <div class="onb-p">Bez pytań, bez gadania. Dostajesz 3–6 mikro-tasków z dosłownym pierwszym ruchem i timerem, który zmusza do działania. Coś nie pasuje? Jeden przycisk i plan się przebudowuje.</div>
+    </div>
+    <div class="onb-slide">
+      <div style="display:flex;justify-content:center"><svg width="86" height="86" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+      <div class="onb-h">Apka uczy się Ciebie</div>
+      <div class="onb-p">Odznaczasz postęp tapnięciem. Wybierasz typ pracy A (manualna) lub B (komputer). Po kilku taskach apka zna Twój styl i ustawia go sama.</div>
+    </div>
+    <div class="onb-dots" id="onbDots"><i class="on"></i><i></i><i></i></div>
+    <button class="btn" id="onbNext" onclick="nextSlide()">Dalej</button>
+  </div>
+</div>
+
+<script>
+let state = {task:'', type:'B', difficulty:'', plan:[], current:0, timerId:null, secondsLeft:0, secondsTotal:0, fixHistory:[]};
+let stats = {done:0, streak:0, lastDay:null, countA:0, countB:0};
+const CIRC = 653.4;
+
+// ===== PAMIĘĆ =====
+async function loadStats(){
+  try{ if(window.storage){ const r = await window.storage.get('jtr-stats'); if(r&&r.value) stats = JSON.parse(r.value); } }catch(e){}
+  renderStats();
+  // auto-wybór stylu na bazie historii
+  if(stats.countA + stats.countB >= 3) pickType(stats.countA > stats.countB ? 'A' : 'B', true);
+  else pickType('B', true);
+}
+async function saveStats(){ try{ if(window.storage) await window.storage.set('jtr-stats', JSON.stringify(stats)); }catch(e){} }
+function styleLabel(){ if(stats.countA+stats.countB<3) return '…'; return stats.countA>stats.countB?'A':'B'; }
+function renderStats(){
+  if(stats.done>0){
+    document.getElementById('stats').hidden=false;
+    document.getElementById('st-done').textContent=stats.done;
+    document.getElementById('st-streak').textContent=stats.streak;
+    document.getElementById('st-style').textContent=styleLabel();
+  }
+}
+const PREV = {'s-plan':'s-input','s-exec':'s-plan','s-done':'s-plan','s-loading':'s-input'};
+let currentScreen = 's-input';
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  currentScreen = id;
+  document.getElementById('backBtn').hidden = !(id in PREV);
+  window.scrollTo(0,0);
+}
+function goBack(){
+  const prev = PREV[currentScreen];
+  if(!prev) return;
+  clearInterval(state.timerId);
+  if(prev === 's-plan') renderPlanList();
+  show(prev);
+}
+// ===== ONBOARDING =====
+let onbIdx = 0;
+function openOnboarding(){ onbIdx = 0; renderOnb(); document.getElementById('onb').classList.add('open'); }
+async function closeOnboarding(){
+  document.getElementById('onb').classList.remove('open');
+  try{ if(window.storage) await window.storage.set('jtr-onboarded','1'); }catch(e){}
+}
+function nextSlide(){
+  const slides = document.querySelectorAll('.onb-slide');
+  if(onbIdx >= slides.length-1){ closeOnboarding(); return; }
+  onbIdx++; renderOnb();
+}
+function renderOnb(){
+  const slides = document.querySelectorAll('.onb-slide');
+  slides.forEach((sl,i)=>sl.classList.toggle('active', i===onbIdx));
+  document.querySelectorAll('#onbDots i').forEach((d,i)=>d.classList.toggle('on', i===onbIdx));
+  document.getElementById('onbNext').textContent = onbIdx >= slides.length-1 ? 'Zaczynamy' : 'Dalej';
+}
+async function maybeShowOnboarding(){
+  try{
+    if(window.storage){
+      const r = await window.storage.get('jtr-onboarded');
+      if(r && r.value === '1') return;
+    }
+  }catch(e){}
+  openOnboarding();
+}
+function pickType(t, silent){ state.type=t; document.getElementById('optA').classList.toggle('sel',t==='A'); document.getElementById('optB').classList.toggle('sel',t==='B'); }
+function toggleDiff(){
+  const cbx = document.getElementById('diffCbx');
+  const inp = document.getElementById('diffInput');
+  const on = !cbx.classList.contains('on');
+  cbx.classList.toggle('on', on);
+  inp.classList.toggle('diff-hidden', !on);
+  if(on) inp.focus();
+}
+
+// ===== GENEROWANIE PLANU (zero pytań) =====
+const SYSTEM_PROMPT = `Jesteś trenerem produktywności w stylu Briana Tracy'ego i Dana Peñy. Mówisz po polsku, krótko, konkretnie, w trybie rozkazującym.
+Użytkownik podaje swój NAJTRUDNIEJSZY task dnia. NIE ZADAJESZ ŻADNYCH PYTAŃ. Sam domyślasz się sensownych założeń i NATYCHMIAST rozbijasz task na 3-6 mikro-tasków.
+Każdy mikro-task: "title" (rozkaz, max 8 słów), "minutes" (5-25), "first_move" (dosłownie pierwszy fizyczny ruch, max 15 słów).
+Typ pracy A = manualna (świat fizyczny: telefony, papiery, ludzie) → pierwsze ruchy fizyczne. Typ B = komputer → pierwsze ruchy przy komputerze.
+Pierwszy mikro-task ma być tak mały, że nie da się go nie zrobić.
+KRYTYCZNE, ZAKRES: trzymaj się ŚCIŚLE i DOSŁOWNIE zakresu zadania. Plan kończy się dokładnie tam, gdzie kończy się task. Przykład: task "przygotować maila" → ostatni krok to gotowy mail w wersji roboczej, BEZ wysyłki, BEZ follow-upów. Task "zebrać dokumenty" → BEZ wysyłania ich do księgowego. Nie dodawaj kroków "na przyszłość", "warto też" ani kolejnych etapów procesu.
+Jeśli użytkownik dośle uwagi do planu, przebuduj cały plan z ich uwzględnieniem.
+Nigdy nie używaj myślnika "—" w żadnym tekście. ODPOWIADAJ WYŁĄCZNIE czystym JSON bez markdown i backticków:
+{"comment":"jedno krótkie motywujące zdanie","microtasks":[{"title":"...","minutes":10,"first_move":"..."}]}`;
+
+const LOADER_LINES = ['Namierzam twój one hard task…','Rozbijam go na mikro-kroki…','Szukam najmniejszego pierwszego ruchu…'];
+
+async function generatePlan(){
+  const task = document.getElementById('taskInput').value.trim();
+  if(!task){ document.getElementById('taskInput').focus(); return; }
+  const diffOn = document.getElementById('diffCbx').classList.contains('on');
+  state.difficulty = diffOn ? document.getElementById('diffInput').value.trim() : '';
+  state.task = task; state.fixHistory = [];
+  await fetchPlan();
+}
+async function regeneratePlan(){
+  const fix = document.getElementById('fixInput').value.trim();
+  if(!fix) return;
+  state.fixHistory.push(fix);
+  document.getElementById('fixInput').value='';
+  document.getElementById('fixPanel').classList.remove('open');
+  await fetchPlan();
+}
+async function fetchPlan(){
+  show('s-loading');
+  let li=0; document.getElementById('loaderText').textContent = LOADER_LINES[0];
+  const loaderInt = setInterval(()=>{ li=(li+1)%LOADER_LINES.length; document.getElementById('loaderText').textContent = LOADER_LINES[li]; }, 1800);
+  let userMsg = `Najtrudniejszy task dnia: "${state.task}". Typ pracy: ${state.type==='A'?'A (manualna)':'B (komputer)'}.`;
+  if(state.difficulty) userMsg += ` Użytkownik opisał na czym polega trudność: "${state.difficulty}". Zaadresuj dokładnie tę trudność w pierwszych mikro-krokach.`;
+  if(state.fixHistory.length) userMsg += ` Uwagi użytkownika do poprzedniego planu (uwzględnij wszystkie): ${state.fixHistory.map((f,i)=>`(${i+1}) ${f}`).join(' ')}`;
+  try{
+    const response = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, system:SYSTEM_PROMPT, messages:[{role:'user',content:userMsg}] })
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(i=>i.type==='text').map(i=>i.text).join('\n');
+    const clean = text.replace(/```json|```/g,'').trim();
+    let parsed;
+    try{ parsed = JSON.parse(clean); }
+    catch(e){ const m = clean.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null; }
+    clearInterval(loaderInt);
+    if(parsed && parsed.microtasks && parsed.microtasks.length) buildPlan(parsed);
+    else buildPlan(fallbackPlan());
+  }catch(err){
+    clearInterval(loaderInt);
+    buildPlan(fallbackPlan());
+  }
+}
+function fallbackPlan(){
+  return {comment:'Plan awaryjny. Lepszy zrobiony niż idealny.', microtasks:[
+    {title:'Przygotuj stanowisko', minutes:5, first_move: state.type==='A'?'Wstań i zbierz wszystko w jedno miejsce.':'Zamknij wszystkie karty oprócz jednej.'},
+    {title:'Zrób najmniejszy pierwszy krok', minutes:10, first_move:'Zacznij od rzeczy na mniej niż minutę.'},
+    {title:'Pracuj jednym blokiem', minutes:20, first_move:'Telefon w tryb samolotowy. Start.'},
+    {title:'Domknij i zapisz efekt', minutes:10, first_move:'Wyślij / zapisz / odłóż to, co zrobione.'}
+  ]};
+}
+function buildPlan(parsed){
+  state.plan = parsed.microtasks.map(m=>({
+    title: m.title||'Mikro-task',
+    minutes: Math.min(25, Math.max(3, parseInt(m.minutes)||10)),
+    first_move: m.first_move||'Po prostu zacznij.',
+    done: false
+  }));
+  document.getElementById('planTaskTitle').textContent = state.task;
+  document.getElementById('planComment').textContent = parsed.comment||'Po kolei. Bez gadania. Tapnij krok, żeby odznaczyć zrobiony.';
+  renderPlanList();
+  show('s-plan');
+}
+function mixHex(a, b, t){
+  const pa = [1,3,5].map(i=>parseInt(a.substr(i,2),16));
+  const pb = [1,3,5].map(i=>parseInt(b.substr(i,2),16));
+  return '#' + pa.map((v,i)=>Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,'0')).join('');
+}
+function renderPlanList(){
+  const list = document.getElementById('planList'); list.innerHTML='';
+  const n = state.plan.length;
+  const firstIdx = state.plan.findIndex(m=>!m.done);
+  state.plan.forEach((m,i)=>{
+    const d = document.createElement('div');
+    d.className = 'micro' + (m.done?' checked':'') + (i===firstIdx?' first':'');
+    // stopniowe przejście biel -> błękit w dół listy
+    d.style.background = mixHex('#FFFFFF', '#D6E6FF', n>1 ? i/(n-1) : 0);
+    d.innerHTML = `<span class="check">${m.done?'✓':''}</span><span style="flex:1"><div class="t"></div><div class="fm"></div></span><span class="min">${m.minutes} min</span>`;
+    d.querySelector('.t').textContent = m.title;
+    d.querySelector('.fm').textContent = '→ ' + m.first_move;
+    d.onclick = ()=>{ m.done = !m.done; renderPlanList(); };
+    list.appendChild(d);
+  });
+  const allDone = state.plan.length && state.plan.every(m=>m.done);
+  document.getElementById('startPlanBtn').textContent = allDone ? '✓ Wszystko zrobione, zakończ' : (state.plan.some(m=>m.done) ? 'Kontynuuj ▸' : 'Start ▸');
+}
+function toggleFix(){
+  const p = document.getElementById('fixPanel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open')) document.getElementById('fixInput').focus();
+}
+
+// ===== WYKONANIE =====
+function firstUndone(from){ for(let i=from;i<state.plan.length;i++){ if(!state.plan[i].done) return i; } return -1; }
+function startExecution(){
+  const i = firstUndone(0);
+  if(i === -1){ finish(); return; }
+  state.current = i; renderDots(); loadMicro(); show('s-exec');
+}
+function backToPlan(){
+  clearInterval(state.timerId);
+  renderPlanList();
+  show('s-plan');
+}
+function renderDots(){
+  const d = document.getElementById('dots'); d.innerHTML='';
+  state.plan.forEach((m,i)=>{
+    const dot = document.createElement('i');
+    if(m.done) dot.className='done';
+    else if(i===state.current) dot.className='now';
+    d.appendChild(dot);
+  });
+}
+function loadMicro(){
+  const m = state.plan[state.current];
+  document.getElementById('execProgress').textContent = `Krok ${state.current+1} z ${state.plan.length}`;
+  document.getElementById('execTitle').textContent = m.title;
+  document.getElementById('execFirstMove').textContent = m.first_move;
+  renderDots();
+  startTimer(m.minutes*60);
+}
+function startTimer(sec){
+  clearInterval(state.timerId);
+  state.secondsLeft=sec; state.secondsTotal=sec;
+  tick(); state.timerId=setInterval(tick,1000);
+}
+function tick(){
+  const t = document.getElementById('timerDisplay');
+  const left = Math.max(0,state.secondsLeft);
+  t.textContent = `${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;
+  document.getElementById('ringFg').style.strokeDashoffset = CIRC * (1 - left/state.secondsTotal);
+  t.classList.toggle('red', state.secondsLeft<=60);
+  if(state.secondsLeft<=0){ clearInterval(state.timerId); t.textContent='CZAS'; }
+  state.secondsLeft--;
+}
+function addTime(){ state.secondsLeft+=300; state.secondsTotal+=300; }
+function doneMicro(){ state.plan[state.current].done = true; nextMicro(); }
+function skipMicro(){ nextMicro(); }
+function nextMicro(){
+  clearInterval(state.timerId);
+  let i = firstUndone(state.current+1);
+  if(i === -1) i = firstUndone(0); // wróć do pominiętych
+  if(i === -1 || state.plan.every(m=>m.done)) finish();
+  else if(i === state.current && !state.plan[i].done) finish(); // tylko pominięte zostały, użytkownik nie chce
+  else { state.current = i; loadMicro(); }
+}
+async function finish(){
+  const today = new Date().toDateString();
+  if(stats.lastDay!==today){
+    const yest = new Date(Date.now()-86400000).toDateString();
+    stats.streak = (stats.lastDay===yest)?stats.streak+1:1;
+    stats.lastDay = today;
+  }
+  stats.done++;
+  if(state.type==='A') stats.countA++; else stats.countB++;
+  await saveStats();
+  document.getElementById('statsDone').innerHTML =
+    `<div class="stat"><b>${stats.done}</b><span>tasków</span></div>
+     <div class="stat"><b>${stats.streak}</b><span>seria</span></div>
+     <div class="stat"><b>${styleLabel()}</b><span>styl</span></div>`;
+  show('s-done');
+}
+function resetApp(){
+  clearInterval(state.timerId);
+  state = {task:'',type:state.type,difficulty:'',plan:[],current:0,timerId:null,secondsLeft:0,secondsTotal:0,fixHistory:[]};
+  document.getElementById('taskInput').value='';
+  document.getElementById('diffInput').value='';
+  document.getElementById('diffInput').classList.add('diff-hidden');
+  document.getElementById('diffCbx').classList.remove('on');
+  renderStats();
+  show('s-input');
+}
+loadStats();
+maybeShowOnboarding();
+</script>
+</body>
+</html>
