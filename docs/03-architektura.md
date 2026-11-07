@@ -132,7 +132,7 @@ Pozostałe RPC: `set_driver_online`, `update_my_location`, `request_driver` (opc
 **Rekomendacja MVP: A z automatycznym fallbackiem.**
 1. Klient widzi listę i mapę (`nearby_drivers`), wybiera kierowcę → `request_driver(job, driver, ttl = 90 s)`.
 2. Kierowca dostaje pełnoekranową ofertę z dźwiękiem i licznikiem 90 s. `accept_offer` blokuje cenę (`price_locked = price_quote`).
-3. Gdy kierowca odrzuci oferetę lub minie timeout, klient widzi „Kierowca niedostępny” i kolejną propozycję z listy jednym tapnięciem. Opcjonalnie przycisk „Wyślij do 5 najbliższych” wywołuje `broadcast_job(ttl = 60 s)`; pierwszy `accept_offer` wygrywa, reszta ofert dostaje `cancelled`.
+3. Gdy kierowca odrzuci ofertę lub minie timeout, klient widzi „Kierowca niedostępny” i kolejną propozycję z listy jednym tapnięciem. Opcjonalnie przycisk „Wyślij do 5 najbliższych” wywołuje `broadcast_job(ttl = 60 s)`; pierwszy `accept_offer` wygrywa, reszta ofert dostaje `cancelled`.
 4. Bez akceptacji przez 15 min zlecenie dostaje `expired` (`expire_stale` z pg_cron co minutę). Kierowca bez pingu przez 5 min przechodzi w offline.
 
 Opcja B staje się domyślna w v2, gdy w mieście będzie ponad 20 aktywnych lawet. Wymaga wtedy natywnej aplikacji (pozycja w tle).
