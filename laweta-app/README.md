@@ -1,4 +1,4 @@
-# Holuj — MVP („Uber dla lawet”)
+# holuj! — MVP („Uber dla lawet”)
 
 > Laweta w minutę. Cena z góry.
 

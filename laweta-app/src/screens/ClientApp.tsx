@@ -99,9 +99,9 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
   let fit: LatLng[] = [];
   let route: LatLng[] | undefined;
   if (step === "track" && activeJob) {
-    markers.push({ id: "p", pos: activeJob.pickup, icon: pinIcon("#0E1A2B", "A") });
+    markers.push({ id: "p", pos: activeJob.pickup, icon: pinIcon("#141414", "A") });
     markers.push({ id: "d", pos: activeJob.dropoff, icon: pinIcon("#1DB954", "B") });
-    markers.push({ id: "t", pos: activeJob.truckPos, icon: truckIcon("#FF7A00", true) });
+    markers.push({ id: "t", pos: activeJob.truckPos, icon: truckIcon("#FD6701", true) });
     route = activeJob.status === "w_transporcie" ? [activeJob.truckPos, activeJob.dropoff] : [activeJob.truckPos, activeJob.pickup];
     fit = [activeJob.truckPos, activeJob.status === "w_transporcie" || activeJob.status === "dostarczone" ? activeJob.dropoff : activeJob.pickup];
   } else {
@@ -112,7 +112,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
       markers.push({
         id: d.id,
         pos,
-        icon: truckIcon(chosen?.driver.id === d.id ? "#1DB954" : freeInOf(d) === null ? "#FF7A00" : "#8A97A8"),
+        icon: truckIcon(chosen?.driver.id === d.id ? "#1DB954" : freeInOf(d) === null ? "#FD6701" : "#8A97A8"),
         label: `${TRUCK_LABEL[d.truck]} · ${freeInOf(d) === null ? "wolna" : "zajęta"}`,
         onClick: step === "offers" && freeInOf(d) === null ? () => setChosen(offers.find((o) => o.driver.id === d.id) ?? null) : undefined,
       }),

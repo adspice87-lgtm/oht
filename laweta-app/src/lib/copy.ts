@@ -1,6 +1,6 @@
 import type { JobStatus, PlaceKind, Situation, VehicleCategory } from "./types";
 
-export const APP_NAME = "Holuj";
+export const APP_NAME = "holuj!";
 export const SLOGAN = "Laweta w minutę. Cena z góry.";
 
 export const CLIENT_STATUS: Record<JobStatus, (eta: number, company: string) => string> = {

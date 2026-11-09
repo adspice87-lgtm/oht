@@ -5,12 +5,12 @@ import type { LatLng } from "../lib/geo";
 
 const truckSvg = (color: string, active = false) => `
 <div style="transform:translate(-50%,-50%);position:absolute;left:50%;top:50%">
-  <div style="width:${active ? 44 : 36}px;height:${active ? 44 : 36}px;border-radius:12px;background:${color};display:grid;place-items:center;box-shadow:0 4px 12px rgba(14,26,43,.35);border:2px solid #fff">
-    <svg width="${active ? 26 : 20}" height="${active ? 26 : 20}" viewBox="0 0 24 24" fill="none" stroke="#0E1A2B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16V8h11v8"/><path d="M13 11h4l3 3v2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>
+  <div style="width:${active ? 44 : 36}px;height:${active ? 44 : 36}px;border-radius:12px;background:${color};display:grid;place-items:center;box-shadow:0 4px 12px rgba(20,20,20,.35);border:2px solid #fff">
+    <svg width="${active ? 26 : 20}" height="${active ? 26 : 20}" viewBox="0 0 24 24" fill="none" stroke="#141414" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16V8h11v8"/><path d="M13 11h4l3 3v2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>
   </div>
 </div>`;
 
-export const truckIcon = (color = "#FF7A00", active = false) =>
+export const truckIcon = (color = "#FD6701", active = false) =>
   L.divIcon({ className: "truck-icon", html: truckSvg(color, active), iconSize: [0, 0] });
 
 export const pinIcon = (color: string, letter: string) =>
@@ -66,7 +66,7 @@ export default function MapView({
       <TileLayer
         url={dark ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"}
       />
-      {route && route.length > 1 && <Polyline positions={route.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#FF7A00", weight: 5, dashArray: "8 10" }} />}
+      {route && route.length > 1 && <Polyline positions={route.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#FD6701", weight: 5, dashArray: "8 10" }} />}
       {markers.map((m) => (
         <Marker key={m.id} position={m.pos} icon={m.icon} eventHandlers={m.onClick ? { click: m.onClick } : undefined}>
           {m.label && <Tooltip direction="top" offset={[0, -22]}>{m.label}</Tooltip>}

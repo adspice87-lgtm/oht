@@ -89,7 +89,7 @@ function Duty({ todayCount, todaySum, dark }: { todayCount: number; todaySum: nu
   return (
     <div className="flex h-full flex-col">
       <div className="relative h-56 shrink-0">
-        <MapView center={me.pos} markers={[{ id: "me", pos: me.pos, icon: truckIcon(me.online ? "#FF7A00" : "#8A97A8", true) }]} fit={[me.pos]} dark={dark} />
+        <MapView center={me.pos} markers={[{ id: "me", pos: me.pos, icon: truckIcon(me.online ? "#FD6701" : "#8A97A8", true) }]} fit={[me.pos]} dark={dark} />
       </div>
       <div className="space-y-4 p-4">
         <button
@@ -184,7 +184,7 @@ function IncomingOffer({ job }: { job: Job }) {
       </div>
       <p className="mt-6 text-6xl font-extrabold">{zl(job.price.total)}</p>
       <p className="mt-1 text-base text-slate-300">
-        Prowizja Holuj {zl(fee)} z portfela · <b className="text-white">zostaje Ci {zl(job.price.total - fee)}</b>
+        Prowizja holuj! {zl(fee)} z portfela · <b className="text-white">zostaje Ci {zl(job.price.total - fee)}</b>
       </p>
       <p className="mt-1 text-lg text-slate-300">
         Dojazd {approach.toFixed(1)} km (~{etaMin(approach)} min) · trasa {job.price.loadedKm.toFixed(1)} km
@@ -245,9 +245,9 @@ function ActiveJob({ job, dark }: { job: Job; dark: boolean }) {
   const target = goingToPickup ? job.pickup : job.dropoff;
   const needPhotos = job.status === "zaladunek" && photos < 4;
   const markers: MapMarker[] = [
-    { id: "p", pos: job.pickup, icon: pinIcon("#0E1A2B", "A") },
+    { id: "p", pos: job.pickup, icon: pinIcon("#141414", "A") },
     { id: "d", pos: job.dropoff, icon: pinIcon("#1DB954", "B") },
-    { id: "t", pos: goingToPickup ? me.pos : job.truckPos, icon: truckIcon("#FF7A00", true) },
+    { id: "t", pos: goingToPickup ? me.pos : job.truckPos, icon: truckIcon("#FD6701", true) },
   ];
   const from: LatLng = goingToPickup ? me.pos : job.pickup;
 

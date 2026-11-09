@@ -1,4 +1,5 @@
-import { Settings as Gear, Truck } from "lucide-react";
+import { Settings as Gear } from "lucide-react";
+import logo from "./assets/logo-holuj.png";
 import { useEffect, useState } from "react";
 import { APP_NAME, SLOGAN } from "./lib/copy";
 import { isNight } from "./lib/pricing";
@@ -7,16 +8,11 @@ import ClientApp from "./screens/ClientApp";
 import DriverApp from "./screens/DriverApp";
 import Settings from "./screens/Settings";
 
-function Logo() {
+function Logo({ slogan }: { slogan: boolean }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-ink">
-        <Truck className="h-5 w-5" strokeWidth={2.6} />
-      </div>
-      <div className="leading-tight">
-        <div className="text-lg font-extrabold tracking-tight">{APP_NAME}</div>
-        <div className="text-[11px] text-muted">{SLOGAN}</div>
-      </div>
+    <div className="flex items-center gap-2.5">
+      <img src={logo} alt={APP_NAME} className="h-10 w-auto rounded-lg" />
+      {slogan && <div className="text-[11px] font-semibold leading-tight text-muted">{SLOGAN}</div>}
     </div>
   );
 }
@@ -25,7 +21,7 @@ function Header({ onSettings }: { onSettings: () => void }) {
   const mode = useStore((s) => s.mode);
   return (
     <header className="z-[600] flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-ink-3 dark:bg-ink-2">
-      <Logo />
+      <Logo slogan={mode !== "driver"} />
       <div className="flex items-center gap-2">
         {mode === "driver" && <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-extrabold text-ink">LAWECIARZ</span>}
         <button onClick={onSettings} className="grid h-10 w-10 place-items-center rounded-xl bg-paper dark:bg-ink" aria-label="Ustawienia">
