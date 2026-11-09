@@ -76,7 +76,7 @@ export default function App() {
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
           <button
-            onClick={() => confirm("Wyczyścić dane demo?") && resetDemo()}
+            onClick={() => resetDemo()}
             className="grid h-9 w-9 place-items-center rounded-xl bg-paper dark:bg-ink"
             aria-label="Reset demo"
             title="Reset demo"
