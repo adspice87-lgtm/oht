@@ -1,16 +1,25 @@
 import { useSyncExternalStore } from "react";
 import { etaMin, lerp, roadKm } from "./geo";
 import { ME_DRIVER_DEFAULT, ME_ID, MOCK_DRIVERS } from "./mock";
-import type { Driver, Job, JobStatus } from "./types";
+import { CANCEL_PENALTY, platformFee, START_BONUS } from "./fees";
+import type { ChatMessage, Driver, Job, JobStatus, WalletTx } from "./types";
 
 /**
  * Prosty store MVP: localStorage + BroadcastChannel (synchronizacja między kartami).
  * Otwórz klienta w jednej karcie i laweciarza w drugiej – zlecenia przechodzą na żywo.
  * W wersji produkcyjnej zastępujemy to Supabase (tabele jobs/driver_locations + Realtime).
  */
-type State = { me: Driver; jobs: Job[]; activeJobId: string | null };
+export type Mode = "client" | "driver";
+type State = {
+  mode: Mode;
+  isDriver: boolean; // czy użytkownik zarejestrował się jako laweciarz (Ustawienia → Zostań laweciarzem)
+  me: Driver;
+  wallet: { balance: number; txs: WalletTx[] };
+  jobs: Job[];
+  activeJobId: string | null;
+};
 
-const KEY = "laweta-mvp-v1";
+const KEY = "holuj-mvp-v2";
 const chan = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(KEY) : null;
 
 function load(): State {
@@ -20,8 +29,10 @@ function load(): State {
   } catch {
     /* ignore */
   }
-  return { me: ME_DRIVER_DEFAULT, jobs: [], activeJobId: null };
+  return initial();
 }
+
+const initial = (): State => ({ mode: "client", isDriver: false, me: ME_DRIVER_DEFAULT, wallet: { balance: 0, txs: [] }, jobs: [], activeJobId: null });
 
 let state: State = load();
 const listeners = new Set<() => void>();
@@ -52,7 +63,7 @@ export function useStore<T>(sel: (s: State) => T): T {
 
 export const getState = () => state;
 
-export function allDrivers(s: State = state): Driver[] {
+export function allDrivers(s: Pick<State, "me"> = state): Driver[] {
   return [...MOCK_DRIVERS, s.me];
 }
 
@@ -92,7 +103,61 @@ export function clearActive() {
 }
 
 export function resetDemo() {
-  set({ me: ME_DRIVER_DEFAULT, jobs: [], activeJobId: null });
+  set(initial());
+}
+
+export function setMode(mode: Mode) {
+  set({ ...state, mode });
+}
+
+export function becomeDriver(profile: Partial<Driver>) {
+  set({
+    ...state,
+    isDriver: true,
+    mode: "driver",
+    me: { ...state.me, ...profile },
+    wallet: { balance: START_BONUS, txs: [{ at: Date.now(), amount: START_BONUS, label: "Bonus startowy" }] },
+  });
+}
+
+export function topUp(amount: number) {
+  set({ ...state, wallet: { balance: state.wallet.balance + amount, txs: [{ at: Date.now(), amount, label: "Doładowanie portfela" }, ...state.wallet.txs] } });
+}
+
+/** Laweciarz przyjmuje zlecenie – z portfela schodzi prowizja Holuj. */
+export function acceptJob(id: string): boolean {
+  const j = state.jobs.find((x) => x.id === id);
+  if (!j) return false;
+  const fee = platformFee(j.price.total);
+  if (state.wallet.balance < fee) return false;
+  set({
+    ...state,
+    wallet: { balance: state.wallet.balance - fee, txs: [{ at: Date.now(), amount: -fee, label: `Prowizja – zlecenie ${id}` }, ...state.wallet.txs] },
+    jobs: state.jobs.map((x) => (x.id === id ? { ...x, fee, status: "przyjete", events: [...x.events, { status: "przyjete", at: Date.now() }] } : x)),
+  });
+  return true;
+}
+
+/** Anulowanie przez laweciarza po przyjęciu: kara + spadek oceny, prowizja nie wraca. */
+export function driverCancel(id: string) {
+  set({
+    ...state,
+    me: { ...state.me, rating: Math.max(1, +(state.me.rating - 0.3).toFixed(1)) },
+    wallet: { balance: state.wallet.balance - CANCEL_PENALTY, txs: [{ at: Date.now(), amount: -CANCEL_PENALTY, label: `Kara za anulowanie ${id}` }, ...state.wallet.txs] },
+    jobs: state.jobs.map((x) => (x.id === id ? { ...x, status: "anulowane", events: [...x.events, { status: "anulowane", at: Date.now() }] } : x)),
+  });
+}
+
+export function sendMessage(id: string, from: ChatMessage["from"], text: string) {
+  if (!text.trim()) return;
+  set({ ...state, jobs: state.jobs.map((x) => (x.id === id ? { ...x, messages: [...x.messages, { from, text: text.trim(), at: Date.now() }] } : x)) });
+}
+
+/** Demo: część lawet jest zajęta innym zleceniem. */
+export function busyFreeInMin(d: Driver, now: number): number | null {
+  if (d.id === ME_ID) return null;
+  if (d.id === "d2" || d.id === "d7") return 8 + ((Math.floor(now / 60000) + parseInt(d.id.slice(1), 10)) % 15);
+  return null;
 }
 
 /* ---------- Symulacja (demo) ----------
@@ -121,12 +186,24 @@ export function tick() {
 
     if (d.id !== ME_ID) {
       const since = now - (j.events.at(-1)?.at ?? j.createdAt);
-      if (j.status === "szukanie" && since > 3500) go("przyjete");
+      if (j.status === "szukanie" && since > 3500) {
+        go("przyjete");
+        next = { ...next, fee: platformFee(j.price.total), messages: [...next.messages, { from: "driver", text: `Dzień dobry, przyjąłem zlecenie. Wyjeżdżam, będę ok. ${etaMin(roadKm(start, j.pickup))} min.`, at: now }] };
+      }
       else if (j.status === "przyjete" && since > 2500) go("w_drodze");
       else if (j.status === "w_drodze" && since > travelMs(roadKm(start, j.pickup))) go("na_miejscu");
       else if (j.status === "na_miejscu" && since > 5000) go("zaladunek");
       else if (j.status === "zaladunek" && since > 5000) go("w_transporcie");
       else if (j.status === "w_transporcie" && since > travelMs(roadKm(j.pickup, j.dropoff))) go("dostarczone");
+    }
+
+    // demo: mockowy operator odpisuje na wiadomość klienta
+    if (d.id !== ME_ID) {
+      const last = next.messages.at(-1);
+      if (last && last.from === "client" && now - last.at > 2500) {
+        next = { ...next, messages: [...next.messages, { from: "driver", text: "Jasne, przyjąłem. Proszę czekać w bezpiecznym miejscu, za barierką.", at: now }] };
+        changed = true;
+      }
     }
 
     // pozycja lawety

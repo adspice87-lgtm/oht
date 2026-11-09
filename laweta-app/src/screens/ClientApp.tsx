@@ -1,11 +1,13 @@
-import { ArrowLeft, Check, ChevronRight, Clock, MapPin, Navigation, Phone, Search, ShieldCheck, Truck, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Clock, Lock, MapPin, MessageCircle, Navigation, Search, ShieldCheck, Truck, X } from "lucide-react";
+import Chat from "../components/Chat";
 import { useEffect, useMemo, useState } from "react";
 import MapView, { meIcon, pinIcon, truckIcon, type MapMarker } from "../components/MapView";
 import { Rating, Sheet, Stepper, Toggle, Verified, zl } from "../components/ui";
+import { ME_ID } from "../lib/mock";
 import { CATEGORIES, CLIENT_STATUS, PLACES, SITUATIONS, SLOGAN } from "../lib/copy";
 import { etaMin, reverseGeocode, roadKm, searchAddress, WARSAW, type LatLng, type Place } from "../lib/geo";
 import { quote, TRUCK_LABEL, truckFits } from "../lib/pricing";
-import { allDrivers, clearActive, createJob, livePos, patchJob, remainingMin, setStatus, useStore } from "../lib/store";
+import { allDrivers, busyFreeInMin, clearActive, createJob, livePos, patchJob, remainingMin, setStatus, useStore } from "../lib/store";
 import type { Driver, Job, PriceBreakdown, VehicleInfo } from "../lib/types";
 
 type Step = "home" | "where" | "vehicle" | "offers" | "confirm" | "track";
@@ -31,7 +33,7 @@ const DEFAULT_VEHICLE: VehicleInfo = {
   note: "",
 };
 
-type Offer = { driver: Driver; pos: LatLng; price: PriceBreakdown; eta: number };
+type Offer = { driver: Driver; pos: LatLng; price: PriceBreakdown; eta: number; freeIn: number | null };
 
 export default function ClientApp({ dark, now }: { dark: boolean; now: number }) {
   const me = useStore((s) => s.me);
@@ -46,6 +48,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
   const [chosen, setChosen] = useState<Offer | null>(null);
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
+  const [note, setNote] = useState("");
   const [gpsDenied, setGpsDenied] = useState(false);
 
   // geolokalizacja klienta
@@ -70,9 +73,11 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
     if (activeJob && step !== "track") setStep("track");
   }, [activeJob, step]);
 
-  const drivers = useMemo(() => allDrivers({ me, jobs, activeJobId }), [me, jobs, activeJobId]);
+  const drivers = useMemo(() => allDrivers({ me }), [me]);
   const busy = new Set(jobs.filter((j) => !["dostarczone", "anulowane"].includes(j.status)).map((j) => j.driverId));
-  const online = drivers.filter((d) => d.online && !busy.has(d.id));
+  const online = drivers.filter((d) => d.online);
+  const freeInOf = (d: Driver) => (busy.has(d.id) ? 20 : busyFreeInMin(d, now));
+  const freeCount = online.filter((d) => freeInOf(d) === null).length;
 
   const offers: Offer[] = useMemo(() => {
     if (!dropoff) return [];
@@ -80,13 +85,14 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
       .filter((d) => truckFits(d, vehicle))
       .map((d) => {
         const pos = livePos(d, now);
-        return { driver: d, pos, price: quote(d.pricing, pos, pickup, dropoff, vehicle), eta: etaMin(roadKm(pos, pickup)) };
+        return { driver: d, pos, price: quote(d.pricing, pos, pickup, dropoff, vehicle), eta: etaMin(roadKm(pos, pickup)), freeIn: freeInOf(d) };
       })
-      .sort((a, b) => a.eta - b.eta);
+      .sort((a, b) => (a.freeIn === null ? 0 : 1) - (b.freeIn === null ? 0 : 1) || a.eta - b.eta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dropoff, vehicle, pickup, online.length, Math.floor(now / 5000)]);
 
-  const cheapest = offers.length ? Math.min(...offers.map((o) => o.price.total)) : 0;
+  const available = offers.filter((o) => o.freeIn === null);
+  const cheapest = available.length ? Math.min(...available.map((o) => o.price.total)) : 0;
 
   /* ---------- mapa ---------- */
   const markers: MapMarker[] = [];
@@ -99,16 +105,16 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
     route = activeJob.status === "w_transporcie" ? [activeJob.truckPos, activeJob.dropoff] : [activeJob.truckPos, activeJob.pickup];
     fit = [activeJob.truckPos, activeJob.status === "w_transporcie" || activeJob.status === "dostarczone" ? activeJob.dropoff : activeJob.pickup];
   } else {
-    markers.push({ id: "me", pos: pickup, icon: meIcon, label: "Tu jesteś" });
+    markers.push({ id: "you", pos: pickup, icon: meIcon, label: "Tu jesteś" });
     if (dropoff) markers.push({ id: "d", pos: dropoff, icon: pinIcon("#1DB954", "B"), label: dropoff.label });
     const list = step === "offers" ? offers.map((o) => ({ d: o.driver, pos: o.pos })) : online.map((d) => ({ d, pos: livePos(d, now) }));
     list.forEach(({ d, pos }) =>
       markers.push({
         id: d.id,
         pos,
-        icon: truckIcon(chosen?.driver.id === d.id ? "#1DB954" : "#FF7A00"),
-        label: `${d.company}`,
-        onClick: step === "offers" ? () => setChosen(offers.find((o) => o.driver.id === d.id) ?? null) : undefined,
+        icon: truckIcon(chosen?.driver.id === d.id ? "#1DB954" : freeInOf(d) === null ? "#FF7A00" : "#8A97A8"),
+        label: `${TRUCK_LABEL[d.truck]} · ${freeInOf(d) === null ? "wolna" : "zajęta"}`,
+        onClick: step === "offers" && freeInOf(d) === null ? () => setChosen(offers.find((o) => o.driver.id === d.id) ?? null) : undefined,
       }),
     );
     fit = step === "offers" && offers.length ? [pickup, ...offers.slice(0, 3).map((o) => o.pos)] : dropoff && step !== "home" ? [pickup, dropoff] : [pickup];
@@ -135,6 +141,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
       status: "szukanie",
       events: [{ status: "szukanie", at: Date.now() }],
       truckPos: chosen.pos,
+      messages: note.trim() ? [{ from: "client", text: note.trim(), at: Date.now() }] : [],
     };
     createJob(job);
     setStep("track");
@@ -178,7 +185,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
           </div>
           <div className="mt-3 flex items-center gap-2 text-sm text-muted">
             <span className="h-2 w-2 animate-pulse rounded-full bg-ok" />
-            {online.length} lawet dostępnych w okolicy teraz
+            {freeCount} wolnych lawet w okolicy teraz
           </div>
           <button className="btn-primary mt-4 w-full text-xl" onClick={() => setStep("where")}>
             <Truck /> Potrzebuję lawety
@@ -187,9 +194,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
             <a href="tel:112" className="font-semibold text-bad">
               Wypadek z rannymi? Dzwoń 112
             </a>
-            <a href="tel:+48500000000" className="font-semibold text-muted">
-              Wolisz zadzwonić?
-            </a>
+            <span className="text-muted">Kontakt z laweciarzem tylko w aplikacji</span>
           </div>
         </Sheet>
       )}
@@ -289,43 +294,51 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
             <h2 className="text-xl font-extrabold">Lawety w pobliżu</h2>
             <span className="text-xs text-muted">{offers[0] ? `${offers[0].price.loadedKm.toFixed(1)} km trasy` : ""}</span>
           </div>
-          <p className="text-sm text-muted">Cena całkowita. Bez niespodzianek.</p>
+          <p className="text-sm text-muted">Zaznacz wolną lawetę – zlecenie trafi do operatora w aplikacji. Cena całkowita, bez niespodzianek.</p>
           {offers.length === 0 && (
             <div className="card mt-3 p-4 text-center">
               <p className="font-semibold">Szukamy dalej… Na razie nikt nie jest wolny w pobliżu.</p>
-              <a href="tel:+48500000000" className="btn-dark mt-3 w-full">
-                <Phone /> Zadzwoń do dyspozytora
-              </a>
             </div>
           )}
           <div className="mt-3 space-y-2">
-            {offers.map((o, i) => (
-              <button key={o.driver.id} onClick={() => setChosen(o)} className={`chip w-full ${chosen?.driver.id === o.driver.id ? "chip-on" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {i === 0 && <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-bold text-white dark:bg-white dark:text-ink">NAJSZYBCIEJ</span>}
-                      {o.price.total === cheapest && <span className="rounded-full bg-ok px-2 py-0.5 text-[11px] font-bold text-white">NAJTANIEJ</span>}
+            {offers.map((o, i) => {
+              const free = o.freeIn === null;
+              return (
+                <button key={o.driver.id} disabled={!free} onClick={() => setChosen(o)} className={`chip w-full disabled:opacity-55 ${chosen?.driver.id === o.driver.id ? "chip-on" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${free ? "bg-brand text-ink" : "bg-slate-200 text-muted dark:bg-ink-3"}`}>
+                      <Truck />
                     </div>
-                    <div className="mt-1 truncate font-bold">{o.driver.company}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
-                      <Rating value={o.driver.rating} jobs={o.driver.jobs} /> · {TRUCK_LABEL[o.driver.truck]}
-                    </div>
-                    {o.driver.verified && (
-                      <div className="mt-1">
-                        <Verified />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {free ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-[11px] font-bold text-ok">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> WOLNA
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-muted dark:bg-ink-3">ZAJĘTA · wolna za ~{o.freeIn} min</span>
+                        )}
+                        {free && i === 0 && <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-bold text-white dark:bg-white dark:text-ink">NAJSZYBCIEJ</span>}
+                        {free && o.price.total === cheapest && <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-ink">NAJTANIEJ</span>}
                       </div>
-                    )}
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-xl font-extrabold">{zl(o.price.total)}</div>
-                    <div className="flex items-center justify-end gap-1 text-sm font-semibold text-brand-dark">
-                      <Clock className="h-4 w-4" /> {o.eta} min
+                      <div className="mt-1 font-bold">{TRUCK_LABEL[o.driver.truck]}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                        <span>z operatorem · {o.driver.id === ME_ID ? "Ty (demo)" : o.driver.name}</span>
+                        <Rating value={o.driver.rating} jobs={o.driver.jobs} />
+                        <span>do {(o.driver.maxKg / 1000).toLocaleString("pl-PL")} t</span>
+                        {o.driver.verified && <Verified />}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-xl font-extrabold">{zl(o.price.total)}</div>
+                      <div className="flex items-center justify-end gap-1 text-sm font-semibold text-brand-dark">
+                        <Clock className="h-4 w-4" /> {o.eta} min
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
           {chosen && (
             <details className="mt-3 rounded-[14px] bg-white p-3 text-sm dark:bg-ink-2">
@@ -343,7 +356,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
           )}
           <div className="sticky -bottom-6 -mx-4 mt-3 bg-paper px-4 pb-6 pt-2 dark:bg-ink">
             <button className="btn-primary w-full" disabled={!chosen} onClick={() => setStep("confirm")}>
-              {chosen ? `Zamów · ${zl(chosen.price.total)}` : "Wybierz lawetę"}
+              {chosen ? `Wyślij zlecenie · ${zl(chosen.price.total)}` : "Zaznacz wolną lawetę"}
             </button>
           </div>
         </Sheet>
@@ -353,16 +366,17 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
       {step === "confirm" && chosen && (
         <Sheet>
           <h2 className="text-xl font-extrabold">Ostatni krok</h2>
-          <p className="text-sm text-muted">Bez zakładania konta. Kierowca zadzwoni na ten numer.</p>
+          <p className="text-sm text-muted">Bez zakładania konta. Numer służy do potwierdzenia (SMS) – laweciarz go nie widzi. Kontakt w aplikacji.</p>
           <input className="input mt-3 text-lg" type="tel" inputMode="tel" placeholder="Twój numer telefonu" value={phone} onChange={(e) => setPhone(e.target.value)} />
           <input className="input mt-2" placeholder="Imię (opcjonalnie)" value={name} onChange={(e) => setName(e.target.value)} />
+          <textarea className="input mt-2" rows={2} placeholder="Wiadomość do operatora, np. „stoję przy stacji Orlen, srebrna Octavia”" value={note} onChange={(e) => setNote(e.target.value)} />
           <div className="card mt-3 p-4">
             <div className="flex justify-between">
-              <span className="font-semibold">{chosen.driver.company}</span>
+              <span className="font-semibold">{TRUCK_LABEL[chosen.driver.truck]}</span>
               <span className="text-xl font-extrabold">{zl(chosen.price.total)}</span>
             </div>
             <div className="mt-1 text-sm text-muted">
-              Dojazd ok. {chosen.eta} min · {TRUCK_LABEL[chosen.driver.truck]}
+              Dojazd ok. {chosen.eta} min · operator {chosen.driver.id === ME_ID ? "Ty (demo)" : chosen.driver.name} · ★ {chosen.driver.rating.toFixed(1)}
             </div>
             <div className="mt-3 flex items-start gap-2 rounded-xl bg-ok/10 p-3 text-sm">
               <ShieldCheck className="h-5 w-5 shrink-0 text-ok" />
@@ -372,7 +386,7 @@ export default function ClientApp({ dark, now }: { dark: boolean; now: number })
             </div>
           </div>
           <button className="btn-primary mt-4 w-full" disabled={phone.replace(/\D/g, "").length < 9} onClick={order}>
-            Zamawiam lawetę
+            <MessageCircle /> Wyślij zlecenie do laweciarza
           </button>
           <p className="mt-2 text-center text-xs text-muted">W wersji produkcyjnej: kod SMS (OTP) do potwierdzenia numeru.</p>
         </Sheet>
@@ -433,7 +447,7 @@ function Tracking({ job, driver, onDone }: { job: Job; driver: Driver; onDone: (
           <h2 className="mt-3 text-2xl font-extrabold">{job.status === "anulowane" ? "Zlecenie anulowane" : `Gotowe. Do zapłaty: ${zl(job.price.total)}`}</h2>
           {job.status === "dostarczone" && (
             <>
-              <p className="mt-1 text-muted">Jak oceniasz {driver.company}?</p>
+              <p className="mt-1 text-muted">Jak oceniasz operatora{driver.id === ME_ID ? "" : ` (${driver.name})`}?</p>
               <div className="mt-3 flex justify-center gap-2">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -461,7 +475,7 @@ function Tracking({ job, driver, onDone }: { job: Job; driver: Driver; onDone: (
   return (
     <Sheet>
       <p className="label">Zlecenie {job.id}</p>
-      <h2 className="mt-1 text-2xl font-extrabold">{CLIENT_STATUS[job.status](eta, driver.company)}</h2>
+      <h2 className="mt-1 text-2xl font-extrabold">{CLIENT_STATUS[job.status](eta, TRUCK_LABEL[driver.truck])}</h2>
       <div className="mt-3 flex gap-1">
         {FLOW.slice(1).map((s, i) => (
           <div key={s} className={`h-1.5 flex-1 rounded-full ${i < idx ? "bg-brand" : "bg-slate-200 dark:bg-ink-3"}`} />
@@ -472,19 +486,22 @@ function Tracking({ job, driver, onDone }: { job: Job; driver: Driver; onDone: (
           <Truck />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-bold">{driver.company}</div>
+          <div className="truncate font-bold">{TRUCK_LABEL[driver.truck]}</div>
           <div className="text-sm text-muted">
-            {driver.name} · {driver.plate} · <Rating value={driver.rating} />
+            {driver.id === ME_ID ? "Ty (demo)" : driver.name} · {driver.plate} · <Rating value={driver.rating} />
           </div>
         </div>
         <div className="text-right text-lg font-extrabold">{zl(job.price.total)}</div>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <a href={`tel:${driver.phone.replace(/\s/g, "")}`} className="btn-primary">
-          <Phone /> Zadzwoń
-        </a>
-        <button className="btn-ghost min-h-[56px]" disabled={idx >= 3} onClick={() => setStatus(job.id, "anulowane")}>
-          Anuluj
+      <div className="mt-3">
+        <Chat job={job} as="client" />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted">
+        <span className="inline-flex items-center gap-1">
+          <Lock className="h-3.5 w-3.5" /> Numery telefonów ukryte
+        </span>
+        <button className="font-semibold text-bad disabled:opacity-40" disabled={idx >= 3} onClick={() => setStatus(job.id, "anulowane")}>
+          Anuluj zlecenie
         </button>
       </div>
       <p className="mt-3 text-center text-xs text-muted">Przed załadunkiem kierowca zrobi zdjęcia auta (protokół). Płatność u kierowcy po dostarczeniu.</p>

@@ -5,7 +5,7 @@ export const SLOGAN = "Laweta w minutę. Cena z góry.";
 
 export const CLIENT_STATUS: Record<JobStatus, (eta: number, company: string) => string> = {
   szukanie: () => "Czekamy na potwierdzenie kierowcy…",
-  przyjete: (_e, c) => `Laweta przyjęła zlecenie · ${c}`,
+  przyjete: () => "Operator przyjął zlecenie · zaraz wyjeżdża",
   w_drodze: (e) => (e <= 2 ? "Laweta jest blisko · ok. 2 min" : `Laweta jedzie do Ciebie · ${e} min`),
   na_miejscu: () => "Laweta na miejscu",
   zaladunek: () => "Ładujemy Twoje auto",

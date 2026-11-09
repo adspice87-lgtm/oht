@@ -1,4 +1,6 @@
-import { Camera, Check, Clock, MapPin, Navigation, Phone, Power, Settings2, Truck, Wallet, X } from "lucide-react";
+import { AlertTriangle, Camera, Check, Clock, MapPin, Navigation, Plus, Power, Settings2, Truck, Wallet, X } from "lucide-react";
+import Chat from "../components/Chat";
+import { CANCEL_PENALTY, FEE_MIN, FEE_PCT, platformFee, TOPUPS } from "../lib/fees";
 import { useEffect, useMemo, useState } from "react";
 import MapView, { pinIcon, truckIcon, type MapMarker } from "../components/MapView";
 import { Toggle, zl } from "../components/ui";
@@ -6,7 +8,7 @@ import { CATEGORIES, DRIVER_NEXT, PLACES, SITUATIONS, STATUS_SHORT } from "../li
 import { etaMin, roadKm, type LatLng } from "../lib/geo";
 import { DEFAULT_PRICING, quote, TRUCK_LABEL } from "../lib/pricing";
 import { ME_ID, MOCK_DRIVERS } from "../lib/mock";
-import { addJob, getState, patchJob, setStatus, updateMe, useStore } from "../lib/store";
+import { acceptJob, addJob, driverCancel, getState, patchJob, setStatus, topUp, updateMe, useStore } from "../lib/store";
 import type { Job, Pricing, TruckType, VehicleInfo } from "../lib/types";
 
 type Tab = "duty" | "pricing" | "history";
@@ -16,6 +18,7 @@ export default function DriverApp({ dark }: { dark: boolean }) {
   const me = useStore((s) => s.me);
   const jobs = useStore((s) => s.jobs);
   const [tab, setTab] = useState<Tab>("duty");
+  const isDriver = useStore((s) => s.isDriver);
 
   const mine = jobs.filter((j) => j.driverId === ME_ID);
   const offer = mine.find((j) => j.status === "szukanie");
@@ -35,6 +38,17 @@ export default function DriverApp({ dark }: { dark: boolean }) {
     );
     return () => navigator.geolocation.clearWatch(id);
   }, [me.online]);
+
+  if (!isDriver)
+    return (
+      <div className="grid h-full place-items-center bg-paper p-6 text-center dark:bg-ink">
+        <div>
+          <Truck className="mx-auto h-10 w-10 text-brand" />
+          <p className="mt-2 font-bold">Nie jesteś jeszcze laweciarzem</p>
+          <p className="text-sm text-muted">Ustawienia (⚙️) → „Zostań laweciarzem”</p>
+        </div>
+      </div>
+    );
 
   return (
     <div className="flex h-full flex-col bg-paper dark:bg-ink">
@@ -57,7 +71,7 @@ export default function DriverApp({ dark }: { dark: boolean }) {
             [
               ["duty", "Dyżur", Power],
               ["pricing", "Cennik", Settings2],
-              ["history", "Zarobki", Wallet],
+              ["history", "Portfel", Wallet],
             ] as const
           ).map(([id, label, Icon]) => (
             <button key={id} onClick={() => setTab(id)} className={`flex flex-col items-center gap-1 py-3 text-xs font-bold ${tab === id ? "text-brand-dark" : "text-muted"}`}>
@@ -98,6 +112,7 @@ function Duty({ todayCount, todaySum, dark }: { todayCount: number; todaySum: nu
             <p className="mt-1 text-3xl font-extrabold">{zl(todaySum)}</p>
           </div>
         </div>
+        <WalletStrip />
         <div className="card p-4 text-sm">
           <p className="font-bold">
             {me.company} · {me.plate}
@@ -111,7 +126,7 @@ function Duty({ todayCount, todaySum, dark }: { todayCount: number; todaySum: nu
             🧪 Demo: wyślij mi testowe zlecenie
           </button>
         )}
-        <p className="text-center text-xs text-muted">Wskazówka: otwórz aplikację w drugiej karcie jako Klient i zamów lawetę „Twoja firma (demo)”.</p>
+        <p className="text-center text-xs text-muted">Wskazówka: przełącz się w Ustawieniach na tryb Klient (albo otwórz drugą kartę) i zaznacz swoją lawetę – „operator: Ty (demo)”.</p>
       </div>
     </div>
   );
@@ -130,6 +145,7 @@ function simulateRequest() {
     id: `Z-${Date.now().toString().slice(-6)}`, createdAt: Date.now(), pickup, dropoff, vehicle, phone: "+48 512 345 678", clientName: "Anna",
     driverId: ME_ID, price: quote(me.pricing, me.pos, pickup, dropoff, vehicle), status: "szukanie",
     events: [{ status: "szukanie", at: Date.now() }], truckPos: me.pos,
+    messages: [{ from: "client", text: "Stoję na awaryjnych przy przystanku, srebrny Golf.", at: Date.now() }],
   };
   addJob(job);
 }
@@ -152,6 +168,9 @@ function IncomingOffer({ job }: { job: Job }) {
   }, [left <= 0]);
   const v = job.vehicle;
   const approach = roadKm(me.pos, job.pickup);
+  const balance = useStore((s) => s.wallet.balance);
+  const fee = platformFee(job.price.total);
+  const canPay = balance >= fee;
   return (
     <div className="flex min-h-full flex-col bg-ink p-4 text-white">
       <div className="flex items-center justify-between">
@@ -164,6 +183,9 @@ function IncomingOffer({ job }: { job: Job }) {
         <div className="h-full bg-brand transition-all" style={{ width: `${(Math.max(0, left) / OFFER_SECONDS) * 100}%` }} />
       </div>
       <p className="mt-6 text-6xl font-extrabold">{zl(job.price.total)}</p>
+      <p className="mt-1 text-base text-slate-300">
+        Prowizja Holuj {zl(fee)} z portfela · <b className="text-white">zostaje Ci {zl(job.price.total - fee)}</b>
+      </p>
       <p className="mt-1 text-lg text-slate-300">
         Dojazd {approach.toFixed(1)} km (~{etaMin(approach)} min) · trasa {job.price.loadedKm.toFixed(1)} km
       </p>
@@ -186,11 +208,24 @@ function IncomingOffer({ job }: { job: Job }) {
         {v.lowered && <Tag warn>Obniżone</Tag>}
         {v.passengers > 0 && <Tag>Pasażerowie: {v.passengers}</Tag>}
       </div>
+      {job.messages.length > 0 && <p className="mt-3 rounded-xl bg-brand-soft p-3 text-ink">💬 {job.messages[0].text}</p>}
+      {!canPay && (
+        <div className="mt-4 rounded-2xl bg-bad/20 p-3 text-sm">
+          <p className="font-bold text-red-200">Za mało środków w portfelu ({zl(balance)}). Doładuj, aby przyjąć zlecenie.</p>
+          <div className="mt-2 flex gap-2">
+            {TOPUPS.map((a) => (
+              <button key={a} onClick={() => topUp(a)} className="btn min-h-[44px] flex-1 bg-white text-ink">
+                +{a} zł
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-auto grid grid-cols-3 gap-3 pt-6">
         <button onClick={reject} className="btn min-h-[80px] bg-ink-3 text-xl text-white">
           <X /> Nie
         </button>
-        <button onClick={() => setStatus(job.id, "przyjete")} className="btn col-span-2 min-h-[80px] bg-brand text-2xl text-ink">
+        <button disabled={!canPay} onClick={() => acceptJob(job.id)} className="btn col-span-2 min-h-[80px] bg-brand text-2xl text-ink">
           <Check className="h-8 w-8" /> BIORĘ
         </button>
       </div>
@@ -237,9 +272,12 @@ function ActiveJob({ job, dark }: { job: Job; dark: boolean }) {
           <a className="btn-dark min-h-[64px]" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}&travelmode=driving`}>
             <Navigation /> Nawiguj
           </a>
-          <a className="btn-ghost min-h-[64px] text-lg" href={`tel:${job.phone.replace(/\s/g, "")}`}>
-            <Phone /> Klient
+          <a className="btn-ghost min-h-[64px] text-lg" href="#czat">
+            💬 Klient
           </a>
+        </div>
+        <div id="czat">
+          <Chat job={job} as="driver" />
         </div>
         {job.status === "zaladunek" && (
           <label className="card flex cursor-pointer items-center gap-3 p-4">
@@ -261,9 +299,7 @@ function ActiveJob({ job, dark }: { job: Job; dark: boolean }) {
             </button>
           )}
           {["przyjete", "w_drodze"].includes(job.status) && (
-            <button className="w-full py-2 text-sm font-semibold text-muted" onClick={() => setStatus(job.id, "anulowane")}>
-              Anuluj zlecenie (obniża ocenę)
-            </button>
+            <CancelButton id={job.id} />
           )}
         </div>
       </div>
@@ -345,20 +381,103 @@ function PricingEditor({ pricing, truck, maxKg, company }: { pricing: Pricing; t
   );
 }
 
+function CancelButton({ id }: { id: string }) {
+  const [ask, setAsk] = useState(false);
+  if (!ask)
+    return (
+      <button className="w-full py-2 text-sm font-semibold text-muted" onClick={() => setAsk(true)}>
+        Anuluj zlecenie
+      </button>
+    );
+  return (
+    <div className="rounded-2xl bg-bad/10 p-3 text-sm">
+      <p className="flex items-center gap-2 font-bold text-bad">
+        <AlertTriangle className="h-4 w-4" /> Kara {zl(CANCEL_PENALTY)}, prowizja nie wraca, ocena spada o 0,3.
+      </p>
+      <p className="mt-1 text-muted">Klient czeka na poboczu. Anuluj tylko w razie awarii lawety.</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button className="btn-ghost" onClick={() => setAsk(false)}>
+          Wracam do zlecenia
+        </button>
+        <button className="btn min-h-[48px] bg-bad text-white" onClick={() => driverCancel(id)}>
+          Anuluj mimo to
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WalletStrip() {
+  const balance = useStore((s) => s.wallet.balance);
+  const low = balance < FEE_MIN;
+  return (
+    <div className={`card flex items-center gap-3 p-4 ${low ? "ring-2 ring-bad" : ""}`}>
+      <Wallet className={`h-7 w-7 ${low ? "text-bad" : "text-brand-dark"}`} />
+      <div className="flex-1">
+        <p className="label">Portfel</p>
+        <p className="text-xl font-extrabold">{zl(balance)}</p>
+        {low && <p className="text-xs font-semibold text-bad">Za mało na prowizję – nie przyjmiesz zlecenia.</p>}
+      </div>
+      <button className="btn-primary min-h-[44px] px-3 text-base" onClick={() => topUp(200)}>
+        <Plus className="h-4 w-4" /> 200 zł
+      </button>
+    </div>
+  );
+}
+
 function History({ jobs }: { jobs: Job[] }) {
+  const wallet = useStore((s) => s.wallet);
   const done = jobs.filter((j) => j.status === "dostarczone");
-  const sum = done.reduce((s, j) => s + j.price.total, 0);
+  const gross = done.reduce((s, j) => s + j.price.total, 0);
+  const fees = jobs.reduce((s, j) => s + (j.fee ?? 0), 0);
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-2xl font-extrabold">Zarobki</h2>
+      <h2 className="text-2xl font-extrabold">Portfel</h2>
       <div className="rounded-2xl bg-ink p-5 text-white">
-        <p className="label text-slate-400">Łącznie (demo)</p>
-        <p className="mt-1 text-4xl font-extrabold">{zl(sum)}</p>
-        <p className="mt-1 text-sm text-slate-300">
-          {done.length} zleceń · 0 zł prowizji · 0 zł na Google Ads 😉
+        <p className="label text-slate-400">Saldo na prowizje</p>
+        <p className="mt-1 text-4xl font-extrabold">{zl(wallet.balance)}</p>
+        <div className="mt-3 flex gap-2">
+          {TOPUPS.map((a) => (
+            <button key={a} onClick={() => topUp(a)} className="btn min-h-[44px] flex-1 bg-brand text-ink">
+              +{a} zł
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-400">Demo – w produkcji BLIK / Przelewy24.</p>
+      </div>
+      <div className="card p-4 text-sm">
+        <p className="font-bold">Jak to działa</p>
+        <p className="mt-1 text-muted">
+          Klient płaci Tobie całą kwotę. Za każde przyjęte zlecenie z portfela schodzi {FEE_PCT}% (min. {zl(FEE_MIN)}). Anulowanie po przyjęciu: kara {zl(CANCEL_PENALTY)}. Bez kliknięć w Google Ads, bez abonamentu.
         </p>
       </div>
-      {jobs.length === 0 && <p className="text-center text-muted">Brak zleceń. Włącz dyżur, aby je otrzymywać.</p>}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="card p-4">
+          <p className="label">Zarobione</p>
+          <p className="mt-1 text-2xl font-extrabold">{zl(gross)}</p>
+          <p className="text-xs text-muted">{done.length} zleceń</p>
+        </div>
+        <div className="card p-4">
+          <p className="label">Prowizje</p>
+          <p className="mt-1 text-2xl font-extrabold">{zl(fees)}</p>
+          <p className="text-xs text-muted">na rękę {zl(gross - fees)}</p>
+        </div>
+      </div>
+      <p className="label">Historia portfela</p>
+      {wallet.txs.length === 0 && <p className="text-center text-muted">Brak operacji.</p>}
+      {wallet.txs.map((t, i) => (
+        <div key={i} className="card flex items-center justify-between p-3 text-sm">
+          <div>
+            <p className="font-semibold">{t.label}</p>
+            <p className="text-xs text-muted">{new Date(t.at).toLocaleString("pl-PL")}</p>
+          </div>
+          <p className={`font-extrabold ${t.amount < 0 ? "text-bad" : "text-ok"}`}>
+            {t.amount > 0 ? "+" : ""}
+            {zl(t.amount)}
+          </p>
+        </div>
+      ))}
+      <p className="label">Zlecenia</p>
       {jobs.map((j) => (
         <div key={j.id} className="card flex items-center gap-3 p-4">
           <Truck className="h-6 w-6 shrink-0 text-brand-dark" />

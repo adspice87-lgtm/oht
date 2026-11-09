@@ -5,15 +5,19 @@
 Klient w ~4 tapnięciach widzi najbliższe wolne lawety z **ceną całkowitą z góry** i czasem dojazdu, zamawia bez konta (sam numer telefonu) i śledzi lawetę na mapie.
 Laweciarz nic nie montuje — odpala apkę na telefonie, klika **„JESTEM DOSTĘPNY”**, ustawia swój cennik (start, zł/km, minimum, mnożniki, dopłaty) i przyjmuje zlecenia jednym dużym przyciskiem.
 
+## Role i zarabianie
+- Każdy startuje jako **klient**. W **Ustawieniach (⚙️) → „Zostań laweciarzem”**: imię operatora, typ lawety, nr rej., ładowność, NIP, akceptacja regulaminu. Potem w Ustawieniach przełącza się tryb Klient / Laweciarz.
+- Klient **nie widzi profili firm ani telefonów**: tylko typ lawety, operatora (imię + ocena), ładowność, **Wolna / Zajęta**, ETA i cenę. Zaznacza wolną lawetę → zlecenie i **wiadomości idą w aplikacji**.
+- **Prowizja Holuj:** 10% ceny (min. 25 zł) schodzi z portfela laweciarza w chwili przyjęcia zlecenia. Bez środków nie przyjmie zlecenia. Anulowanie po przyjęciu: kara 50 zł, prowizja nie wraca, ocena −0,3. Stałe w `src/lib/fees.ts`.
+
 ## Uruchomienie
 ```bash
 cd laweta-app
 npm install
 npm run dev        # http://localhost:5173
 ```
-- Na desktopie widok **„Oba”** pokazuje dwa telefony obok siebie: klient i laweciarz — zlecenie przechodzi na żywo.
-- Można też otworzyć dwie karty: `?rola=client` i `?rola=driver` (synchronizacja przez BroadcastChannel).
-- Demo: w panelu laweciarza włącz dyżur, potem jako klient wybierz lawetę **„Twoja firma (demo)”**. Pozostałe (mockowe) lawety same akceptują i jadą (czas skrócony: 1 min = 1 s).
+- Demo: zostań laweciarzem, włącz dyżur, przełącz na Klienta i zaznacz lawetę „operator: Ty (demo)”, potem wróć na Laweciarza i kliknij BIORĘ. Pozostałe (mockowe) lawety same akceptują, odpisują na czacie i jadą (czas skrócony: 1 min = 1 s).
+- Na desktopie: Ustawienia → „oba telefony obok siebie”. Działa też w dwóch kartach (synchronizacja przez BroadcastChannel).
 
 ## Co jest w MVP
 | Klient | Laweciarz |

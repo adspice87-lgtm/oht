@@ -30,6 +30,7 @@ export type Driver = {
   plate: string;
   verified: boolean;
   online: boolean;
+  busyUntil?: number; // demo: zajęta (inne zlecenie) do tego czasu
   pos: LatLng;
   pricing: Pricing;
 };
@@ -64,6 +65,10 @@ export type JobStatus =
   | "dostarczone"
   | "anulowane";
 
+export type ChatMessage = { from: "client" | "driver"; text: string; at: number };
+
+export type WalletTx = { at: number; amount: number; label: string };
+
 export type JobEvent = { status: JobStatus; at: number };
 
 export type PriceBreakdown = {
@@ -87,4 +92,6 @@ export type Job = {
   events: JobEvent[];
   truckPos: LatLng;
   rating?: number;
+  fee?: number; // prowizja Holuj pobrana od laweciarza przy akceptacji
+  messages: ChatMessage[];
 };
