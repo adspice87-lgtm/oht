@@ -1,7 +1,7 @@
 import { ArrowLeft, Check, Moon, RotateCcw, Truck, User } from "lucide-react";
 import { useState } from "react";
-import { Toggle, zl } from "../components/ui";
-import { CANCEL_PENALTY, FEE_MIN, FEE_PCT, START_BONUS } from "../lib/fees";
+import { Toggle } from "../components/ui";
+import { CANCEL_PENALTY, START_TOKENS, tk, UNLOCK_COST } from "../lib/fees";
 import { TRUCK_LABEL } from "../lib/pricing";
 import { becomeDriver, resetDemo, setMode, useStore } from "../lib/store";
 import type { TruckType } from "../lib/types";
@@ -66,7 +66,7 @@ export default function Settings({
             <Truck className="h-8 w-8 text-brand" />
             <h2 className="mt-2 text-xl font-extrabold">Masz lawetę? Zostań laweciarzem</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Zlecenia z okolicy prosto na telefon, bez wydawania na Google Ads. Włączasz dyżur, gdy pracujesz. Płacisz tylko za przyjęte zlecenie: {FEE_PCT}% (min. {zl(FEE_MIN)}).
+              Zlecenia z okolicy prosto na telefon, bez wydawania na Google Ads. Włączasz dyżur, gdy pracujesz. Płacisz tylko za zlecenie, które bierzesz: {tk(UNLOCK_COST)} (1 token = 1 zł). Na start {START_TOKENS} tokenów gratis po weryfikacji i naklejeniu naklejki holuj!.
             </p>
             <button className="btn-primary mt-4 w-full" onClick={() => setOnboarding(true)}>
               Zostań laweciarzem
@@ -154,11 +154,11 @@ function DriverOnboarding({ onDone }: { onDone: () => void }) {
       <label className="flex items-start gap-3 rounded-xl bg-paper p-3 text-sm dark:bg-ink-3">
         <input id="op-agree" type="checkbox" className="mt-1 h-5 w-5 accent-[#FF7A00]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
         <span>
-          Akceptuję regulamin: prowizja {FEE_PCT}% (min. {zl(FEE_MIN)}) z portfela za każde przyjęte zlecenie, kara {zl(CANCEL_PENALTY)} za anulowanie po przyjęciu, kontakt z klientem tylko przez aplikację.
+          Akceptuję regulamin: odblokowanie każdego zlecenia kosztuje {tk(UNLOCK_COST)} (1 token = 1 zł), kara {tk(CANCEL_PENALTY)} za anulowanie po przyjęciu, kontakt z klientem tylko przez aplikację, naklejka holuj! na lawecie.
         </span>
       </label>
       <button className="btn-primary w-full" disabled={!ok}>
-        <Check /> Zarejestruj · {zl(START_BONUS)} bonusu na start
+        <Check /> Zarejestruj i przejdź do weryfikacji
       </button>
     </form>
   );

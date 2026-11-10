@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { etaMin, lerp, roadKm } from "./geo";
 import { ME_DRIVER_DEFAULT, ME_ID, MOCK_DRIVERS } from "./mock";
-import { CANCEL_PENALTY, platformFee, START_BONUS } from "./fees";
+import { CANCEL_PENALTY, START_TOKENS, UNLOCK_COST } from "./fees";
 import type { ChatMessage, Driver, Job, JobStatus, WalletTx } from "./types";
 
 /**
@@ -13,13 +13,15 @@ export type Mode = "client" | "driver";
 type State = {
   mode: Mode;
   isDriver: boolean; // czy użytkownik zarejestrował się jako laweciarz (Ustawienia → Zostań laweciarzem)
+  verification: "none" | "pending" | "verified"; // weryfikacja NIP/OC + zdjęcie naklejki
+  stickerPhoto: boolean;
   me: Driver;
   wallet: { balance: number; txs: WalletTx[] };
   jobs: Job[];
   activeJobId: string | null;
 };
 
-const KEY = "holuj-mvp-v2";
+const KEY = "holuj-mvp-v3";
 const chan = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(KEY) : null;
 
 function load(): State {
@@ -32,7 +34,7 @@ function load(): State {
   return initial();
 }
 
-const initial = (): State => ({ mode: "client", isDriver: false, me: ME_DRIVER_DEFAULT, wallet: { balance: 0, txs: [] }, jobs: [], activeJobId: null });
+const initial = (): State => ({ mode: "client", isDriver: false, verification: "none", stickerPhoto: false, me: ME_DRIVER_DEFAULT, wallet: { balance: 0, txs: [] }, jobs: [], activeJobId: null });
 
 let state: State = load();
 const listeners = new Set<() => void>();
@@ -115,30 +117,60 @@ export function becomeDriver(profile: Partial<Driver>) {
     ...state,
     isDriver: true,
     mode: "driver",
-    me: { ...state.me, ...profile },
-    wallet: { balance: START_BONUS, txs: [{ at: Date.now(), amount: START_BONUS, label: "Bonus startowy" }] },
+    verification: "pending",
+    me: { ...state.me, ...profile, verified: false },
   });
 }
 
-export function topUp(amount: number) {
-  set({ ...state, wallet: { balance: state.wallet.balance + amount, txs: [{ at: Date.now(), amount, label: "Doładowanie portfela" }, ...state.wallet.txs] } });
+/** Laweciarz wysyła zdjęcie naklejki holuj! na lawecie. */
+export function submitSticker() {
+  set({ ...state, stickerPhoto: true });
 }
 
-/** Laweciarz przyjmuje zlecenie – z portfela schodzi prowizja Holuj. */
+/** Admin zatwierdza weryfikację (w demo – przycisk) → 100 tokenów na start. */
+export function approveVerification() {
+  if (state.verification === "verified") return;
+  set({
+    ...state,
+    verification: "verified",
+    me: { ...state.me, verified: true },
+    wallet: { balance: state.wallet.balance + START_TOKENS, txs: [{ at: Date.now(), amount: START_TOKENS, label: "Bonus startowy: weryfikacja + naklejka" }, ...state.wallet.txs] },
+  });
+}
+
+export function buyTokens(tokens: number, bonus = 0) {
+  const txs: WalletTx[] = [{ at: Date.now(), amount: tokens, label: `Zakup ${tokens} tokenów` }];
+  if (bonus) txs.unshift({ at: Date.now(), amount: bonus, label: "Bonus za pakiet" });
+  set({ ...state, wallet: { balance: state.wallet.balance + tokens + bonus, txs: [...txs, ...state.wallet.txs] } });
+}
+
+/** Laweciarz odblokowuje (przyjmuje) zlecenie – z portfela schodzi 50 tokenów. */
 export function acceptJob(id: string): boolean {
   const j = state.jobs.find((x) => x.id === id);
   if (!j) return false;
-  const fee = platformFee(j.price.total);
-  if (state.wallet.balance < fee) return false;
+  const fee = UNLOCK_COST;
+  if (state.verification !== "verified" || state.wallet.balance < fee) return false;
   set({
     ...state,
-    wallet: { balance: state.wallet.balance - fee, txs: [{ at: Date.now(), amount: -fee, label: `Prowizja – zlecenie ${id}` }, ...state.wallet.txs] },
+    wallet: { balance: state.wallet.balance - fee, txs: [{ at: Date.now(), amount: -fee, label: `Odblokowanie zlecenia ${id}` }, ...state.wallet.txs] },
     jobs: state.jobs.map((x) => (x.id === id ? { ...x, fee, status: "przyjete", events: [...x.events, { status: "przyjete", at: Date.now() }] } : x)),
   });
   return true;
 }
 
-/** Anulowanie przez laweciarza po przyjęciu: kara + spadek oceny, prowizja nie wraca. */
+/** Klient anuluje. Jeśli laweciarz (Ty) już odblokował zlecenie – tokeny wracają. */
+export function clientCancel(id: string) {
+  const j = state.jobs.find((x) => x.id === id);
+  if (!j) return;
+  const refund = j.driverId === ME_ID && j.fee ? j.fee : 0;
+  set({
+    ...state,
+    wallet: refund ? { balance: state.wallet.balance + refund, txs: [{ at: Date.now(), amount: refund, label: `Zwrot – klient anulował ${id}` }, ...state.wallet.txs] } : state.wallet,
+    jobs: state.jobs.map((x) => (x.id === id ? { ...x, status: "anulowane", events: [...x.events, { status: "anulowane", at: Date.now() }] } : x)),
+  });
+}
+
+/** Anulowanie przez laweciarza po przyjęciu: kara + spadek oceny, tokeny nie wracają. */
 export function driverCancel(id: string) {
   set({
     ...state,
@@ -188,7 +220,7 @@ export function tick() {
       const since = now - (j.events.at(-1)?.at ?? j.createdAt);
       if (j.status === "szukanie" && since > 3500) {
         go("przyjete");
-        next = { ...next, fee: platformFee(j.price.total), messages: [...next.messages, { from: "driver", text: `Dzień dobry, przyjąłem zlecenie. Wyjeżdżam, będę ok. ${etaMin(roadKm(start, j.pickup))} min.`, at: now }] };
+        next = { ...next, fee: UNLOCK_COST, messages: [...next.messages, { from: "driver", text: `Dzień dobry, przyjąłem zlecenie. Wyjeżdżam, będę ok. ${etaMin(roadKm(start, j.pickup))} min.`, at: now }] };
       }
       else if (j.status === "przyjete" && since > 2500) go("w_drodze");
       else if (j.status === "w_drodze" && since > travelMs(roadKm(start, j.pickup))) go("na_miejscu");

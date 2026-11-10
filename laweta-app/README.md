@@ -8,7 +8,7 @@ Laweciarz nic nie montuje — odpala apkę na telefonie, klika **„JESTEM DOST�
 ## Role i zarabianie
 - Każdy startuje jako **klient**. W **Ustawieniach (⚙️) → „Zostań laweciarzem”**: imię operatora, typ lawety, nr rej., ładowność, NIP, akceptacja regulaminu. Potem w Ustawieniach przełącza się tryb Klient / Laweciarz.
 - Klient **nie widzi profili firm ani telefonów**: tylko typ lawety, operatora (imię + ocena), ładowność, **Wolna / Zajęta**, ETA i cenę. Zaznacza wolną lawetę → zlecenie i **wiadomości idą w aplikacji**.
-- **Prowizja Holuj:** 10% ceny (min. 25 zł) schodzi z portfela laweciarza w chwili przyjęcia zlecenia. Bez środków nie przyjmie zlecenia. Anulowanie po przyjęciu: kara 50 zł, prowizja nie wraca, ocena −0,3. Stałe w `src/lib/fees.ts`.
+- **Tokeny (1 token = 1 zł):** odblokowanie (przyjęcie) zlecenia = 50 tokenów, stała opłata. 100 tokenów na start po weryfikacji (NIP/OC + zdjęcie naklejki holuj! na lawecie). Pakiety 100 / 300+30 / 500+75. Klient anuluje po przyjęciu → zwrot tokenów; laweciarz anuluje → kara 50 tokenów + ocena −0,3. Stałe w `src/lib/fees.ts`.
 
 ## Uruchomienie
 ```bash

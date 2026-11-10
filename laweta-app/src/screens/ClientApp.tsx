@@ -7,7 +7,7 @@ import { ME_ID } from "../lib/mock";
 import { CATEGORIES, CLIENT_STATUS, PLACES, SITUATIONS, SLOGAN } from "../lib/copy";
 import { etaMin, reverseGeocode, roadKm, searchAddress, WARSAW, type LatLng, type Place } from "../lib/geo";
 import { quote, TRUCK_LABEL, truckFits } from "../lib/pricing";
-import { allDrivers, busyFreeInMin, clearActive, createJob, livePos, patchJob, remainingMin, setStatus, useStore } from "../lib/store";
+import { allDrivers, busyFreeInMin, clearActive, clientCancel, createJob, livePos, patchJob, remainingMin, useStore } from "../lib/store";
 import type { Driver, Job, PriceBreakdown, VehicleInfo } from "../lib/types";
 
 type Step = "home" | "where" | "vehicle" | "offers" | "confirm" | "track";
@@ -500,7 +500,7 @@ function Tracking({ job, driver, onDone }: { job: Job; driver: Driver; onDone: (
         <span className="inline-flex items-center gap-1">
           <Lock className="h-3.5 w-3.5" /> Numery telefonów ukryte
         </span>
-        <button className="font-semibold text-bad disabled:opacity-40" disabled={idx >= 3} onClick={() => setStatus(job.id, "anulowane")}>
+        <button className="font-semibold text-bad disabled:opacity-40" disabled={idx >= 3} onClick={() => clientCancel(job.id)}>
           Anuluj zlecenie
         </button>
       </div>

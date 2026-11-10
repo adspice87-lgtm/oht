@@ -1,6 +1,6 @@
 import { AlertTriangle, Camera, Check, Clock, MapPin, Navigation, Plus, Power, Settings2, Truck, Wallet, X } from "lucide-react";
 import Chat from "../components/Chat";
-import { CANCEL_PENALTY, FEE_MIN, FEE_PCT, platformFee, TOPUPS } from "../lib/fees";
+import { CANCEL_PENALTY, PACKAGES, START_TOKENS, tk, UNLOCK_COST } from "../lib/fees";
 import { useEffect, useMemo, useState } from "react";
 import MapView, { pinIcon, truckIcon, type MapMarker } from "../components/MapView";
 import { Toggle, zl } from "../components/ui";
@@ -8,7 +8,7 @@ import { CATEGORIES, DRIVER_NEXT, PLACES, SITUATIONS, STATUS_SHORT } from "../li
 import { etaMin, roadKm, type LatLng } from "../lib/geo";
 import { DEFAULT_PRICING, quote, TRUCK_LABEL } from "../lib/pricing";
 import { ME_ID, MOCK_DRIVERS } from "../lib/mock";
-import { acceptJob, addJob, driverCancel, getState, patchJob, setStatus, topUp, updateMe, useStore } from "../lib/store";
+import { acceptJob, addJob, approveVerification, buyTokens, driverCancel, getState, patchJob, setStatus, submitSticker, updateMe, useStore } from "../lib/store";
 import type { Job, Pricing, TruckType, VehicleInfo } from "../lib/types";
 
 type Tab = "duty" | "pricing" | "history";
@@ -86,13 +86,16 @@ export default function DriverApp({ dark }: { dark: boolean }) {
 
 function Duty({ todayCount, todaySum, dark }: { todayCount: number; todaySum: number; dark: boolean }) {
   const me = useStore((s) => s.me);
+  const verification = useStore((s) => s.verification);
   return (
     <div className="flex h-full flex-col">
       <div className="relative h-56 shrink-0">
         <MapView center={me.pos} markers={[{ id: "me", pos: me.pos, icon: truckIcon(me.online ? "#FD6701" : "#8A97A8", true) }]} fit={[me.pos]} dark={dark} />
       </div>
       <div className="space-y-4 p-4">
+        {verification !== "verified" && <VerificationCard />}
         <button
+          disabled={verification !== "verified"}
           onClick={() => updateMe({ online: !me.online })}
           className={`btn min-h-[88px] w-full text-2xl ${me.online ? "bg-ok text-white" : "bg-ink text-white dark:bg-white dark:text-ink"}`}
         >
@@ -169,7 +172,7 @@ function IncomingOffer({ job }: { job: Job }) {
   const v = job.vehicle;
   const approach = roadKm(me.pos, job.pickup);
   const balance = useStore((s) => s.wallet.balance);
-  const fee = platformFee(job.price.total);
+  const fee = UNLOCK_COST;
   const canPay = balance >= fee;
   return (
     <div className="flex min-h-full flex-col bg-ink p-4 text-white">
@@ -184,7 +187,7 @@ function IncomingOffer({ job }: { job: Job }) {
       </div>
       <p className="mt-6 text-6xl font-extrabold">{zl(job.price.total)}</p>
       <p className="mt-1 text-base text-slate-300">
-        Prowizja holuj! {zl(fee)} z portfela · <b className="text-white">zostaje Ci {zl(job.price.total - fee)}</b>
+        Odblokowanie: {tk(fee)} · klient płaci Tobie całe <b className="text-white">{zl(job.price.total)}</b>
       </p>
       <p className="mt-1 text-lg text-slate-300">
         Dojazd {approach.toFixed(1)} km (~{etaMin(approach)} min) · trasa {job.price.loadedKm.toFixed(1)} km
@@ -211,11 +214,12 @@ function IncomingOffer({ job }: { job: Job }) {
       {job.messages.length > 0 && <p className="mt-3 rounded-xl bg-brand-soft p-3 text-ink">💬 {job.messages[0].text}</p>}
       {!canPay && (
         <div className="mt-4 rounded-2xl bg-bad/20 p-3 text-sm">
-          <p className="font-bold text-red-200">Za mało środków w portfelu ({zl(balance)}). Doładuj, aby przyjąć zlecenie.</p>
+          <p className="font-bold text-red-200">Masz {tk(balance)}, a odblokowanie kosztuje {tk(fee)}. Kup tokeny, aby przyjąć zlecenie.</p>
           <div className="mt-2 flex gap-2">
-            {TOPUPS.map((a) => (
-              <button key={a} onClick={() => topUp(a)} className="btn min-h-[44px] flex-1 bg-white text-ink">
-                +{a} zł
+            {PACKAGES.map((p) => (
+              <button key={p.tokens} onClick={() => buyTokens(p.tokens, p.bonus)} className="btn min-h-[44px] flex-1 bg-white text-sm text-ink">
+                {p.tokens}
+                {p.bonus ? `+${p.bonus}` : ""} tok.
               </button>
             ))}
           </div>
@@ -226,7 +230,7 @@ function IncomingOffer({ job }: { job: Job }) {
           <X /> Nie
         </button>
         <button disabled={!canPay} onClick={() => acceptJob(job.id)} className="btn col-span-2 min-h-[80px] bg-brand text-2xl text-ink">
-          <Check className="h-8 w-8" /> BIORĘ
+          <Check className="h-8 w-8" /> BIORĘ · {fee}
         </button>
       </div>
     </div>
@@ -392,7 +396,7 @@ function CancelButton({ id }: { id: string }) {
   return (
     <div className="rounded-2xl bg-bad/10 p-3 text-sm">
       <p className="flex items-center gap-2 font-bold text-bad">
-        <AlertTriangle className="h-4 w-4" /> Kara {zl(CANCEL_PENALTY)}, prowizja nie wraca, ocena spada o 0,3.
+        <AlertTriangle className="h-4 w-4" /> Kara {tk(CANCEL_PENALTY)}, tokeny za odblokowanie nie wracają, ocena spada o 0,3.
       </p>
       <p className="mt-1 text-muted">Klient czeka na poboczu. Anuluj tylko w razie awarii lawety.</p>
       <div className="mt-2 grid grid-cols-2 gap-2">
@@ -409,17 +413,19 @@ function CancelButton({ id }: { id: string }) {
 
 function WalletStrip() {
   const balance = useStore((s) => s.wallet.balance);
-  const low = balance < FEE_MIN;
+  const low = balance < UNLOCK_COST;
   return (
     <div className={`card flex items-center gap-3 p-4 ${low ? "ring-2 ring-bad" : ""}`}>
       <Wallet className={`h-7 w-7 ${low ? "text-bad" : "text-brand-dark"}`} />
       <div className="flex-1">
         <p className="label">Portfel</p>
-        <p className="text-xl font-extrabold">{zl(balance)}</p>
-        {low && <p className="text-xs font-semibold text-bad">Za mało na prowizję – nie przyjmiesz zlecenia.</p>}
+        <p className="text-xl font-extrabold">{tk(balance)}</p>
+        <p className={`text-xs font-semibold ${low ? "text-bad" : "text-muted"}`}>
+          {low ? `Za mało – odblokowanie zlecenia to ${UNLOCK_COST} tok.` : `Wystarczy na ${Math.floor(balance / UNLOCK_COST)} zleceń`}
+        </p>
       </div>
-      <button className="btn-primary min-h-[44px] px-3 text-base" onClick={() => topUp(200)}>
-        <Plus className="h-4 w-4" /> 200 zł
+      <button className="btn-primary min-h-[44px] px-3 text-base" onClick={() => buyTokens(300, 30)}>
+        <Plus className="h-4 w-4" /> 300
       </button>
     </div>
   );
@@ -429,26 +435,29 @@ function History({ jobs }: { jobs: Job[] }) {
   const wallet = useStore((s) => s.wallet);
   const done = jobs.filter((j) => j.status === "dostarczone");
   const gross = done.reduce((s, j) => s + j.price.total, 0);
-  const fees = jobs.reduce((s, j) => s + (j.fee ?? 0), 0);
+  const spent = -wallet.txs.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
   return (
     <div className="space-y-4 p-4">
       <h2 className="text-2xl font-extrabold">Portfel</h2>
       <div className="rounded-2xl bg-ink p-5 text-white">
-        <p className="label text-slate-400">Saldo na prowizje</p>
-        <p className="mt-1 text-4xl font-extrabold">{zl(wallet.balance)}</p>
-        <div className="mt-3 flex gap-2">
-          {TOPUPS.map((a) => (
-            <button key={a} onClick={() => topUp(a)} className="btn min-h-[44px] flex-1 bg-brand text-ink">
-              +{a} zł
+        <p className="label text-slate-400">Tokeny (1 token = 1 zł)</p>
+        <p className="mt-1 text-4xl font-extrabold">{tk(wallet.balance)}</p>
+        <p className="text-sm text-slate-300">= {Math.floor(wallet.balance / UNLOCK_COST)} odblokowanych zleceń</p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {PACKAGES.map((p) => (
+            <button key={p.tokens} onClick={() => buyTokens(p.tokens, p.bonus)} className="btn flex-col gap-0 rounded-xl bg-brand py-2 text-ink">
+              <span className="text-lg">{p.tokens + p.bonus}</span>
+              <span className="text-[11px] font-semibold">{p.bonus ? `w tym +${p.bonus} gratis` : "tokenów"}</span>
+              <span className="text-xs">{zl(p.price)}</span>
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-400">Demo – w produkcji BLIK / Przelewy24.</p>
+        <p className="mt-2 text-xs text-slate-400">Demo – w produkcji płatność BLIK / Przelewy24 i faktura VAT.</p>
       </div>
       <div className="card p-4 text-sm">
         <p className="font-bold">Jak to działa</p>
         <p className="mt-1 text-muted">
-          Klient płaci Tobie całą kwotę. Za każde przyjęte zlecenie z portfela schodzi {FEE_PCT}% (min. {zl(FEE_MIN)}). Anulowanie po przyjęciu: kara {zl(CANCEL_PENALTY)}. Bez kliknięć w Google Ads, bez abonamentu.
+          Klient płaci Tobie całą kwotę. Odblokowanie (przyjęcie) zlecenia kosztuje stałe {tk(UNLOCK_COST)}, bez względu na wartość kursu. Klient anuluje po przyjęciu – tokeny wracają. Ty anulujesz – kara {tk(CANCEL_PENALTY)}. Bez kliknięć w Google Ads, bez abonamentu.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -458,9 +467,9 @@ function History({ jobs }: { jobs: Job[] }) {
           <p className="text-xs text-muted">{done.length} zleceń</p>
         </div>
         <div className="card p-4">
-          <p className="label">Prowizje</p>
-          <p className="mt-1 text-2xl font-extrabold">{zl(fees)}</p>
-          <p className="text-xs text-muted">na rękę {zl(gross - fees)}</p>
+          <p className="label">Wydane tokeny</p>
+          <p className="mt-1 text-2xl font-extrabold">{tk(spent)}</p>
+          <p className="text-xs text-muted">odblokowania i kary</p>
         </div>
       </div>
       <p className="label">Historia portfela</p>
@@ -473,7 +482,7 @@ function History({ jobs }: { jobs: Job[] }) {
           </div>
           <p className={`font-extrabold ${t.amount < 0 ? "text-bad" : "text-ok"}`}>
             {t.amount > 0 ? "+" : ""}
-            {zl(t.amount)}
+            {tk(t.amount)}
           </p>
         </div>
       ))}
@@ -491,6 +500,46 @@ function History({ jobs }: { jobs: Job[] }) {
           <p className="font-extrabold">{zl(j.price.total)}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function VerificationCard() {
+  const verification = useStore((s) => s.verification);
+  const sticker = useStore((s) => s.stickerPhoto);
+  return (
+    <div className="card space-y-3 p-4">
+      <div>
+        <p className="label">Weryfikacja · {START_TOKENS} tokenów na start</p>
+        <p className="mt-1 font-bold">Zanim włączysz dyżur</p>
+      </div>
+      <ol className="space-y-2 text-sm">
+        <li className="flex gap-2">
+          <Check className="h-5 w-5 shrink-0 text-ok" /> Dane firmy i lawety wysłane
+        </li>
+        <li className="flex gap-2">
+          {sticker ? <Check className="h-5 w-5 shrink-0 text-ok" /> : <Camera className="h-5 w-5 shrink-0 text-brand-dark" />}
+          <span>
+            Naklej naklejkę <b>holuj!</b> na lawetę (tył lub drzwi) i zrób zdjęcie tak, żeby było widać naklejkę i tablicę rejestracyjną.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <Clock className="h-5 w-5 shrink-0 text-muted" /> Sprawdzamy NIP (CEIDG) i polisę OC/OCPD – zwykle do 24 h.
+        </li>
+      </ol>
+      {!sticker ? (
+        <label className="btn-primary w-full cursor-pointer">
+          <Camera /> Zrób zdjęcie naklejki
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.length && submitSticker()} />
+        </label>
+      ) : (
+        <div className="rounded-xl bg-paper p-3 text-sm dark:bg-ink-3">Zdjęcie wysłane. Czekamy na weryfikację.</div>
+      )}
+      {verification === "pending" && (
+        <button className="w-full text-xs font-bold text-muted underline" onClick={() => { submitSticker(); approveVerification(); }}>
+          Demo: zatwierdź weryfikację jako admin (+{START_TOKENS} tok.)
+        </button>
+      )}
     </div>
   );
 }

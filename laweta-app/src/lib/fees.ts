@@ -1,15 +1,22 @@
 /**
- * Model zarabiania Holuj (MVP):
- * - laweciarz ma portfel (przedpłata), klient płaci laweciarzowi normalnie
- * - przy PRZYJĘCIU zlecenia z portfela schodzi prowizja: 10% ceny, min. 25 zł
- * - anulowanie przez laweciarza po przyjęciu: prowizja nie wraca + kara 50 zł + spadek oceny
- * - bez środków w portfelu laweciarz nie przyjmie zlecenia (nie może „olać” systemu i brać klientów bokiem,
- *   bo klient nie widzi jego numeru – kontakt tylko w aplikacji)
+ * Model zarabiania holuj! – TOKENY (1 token = 1 zł):
+ * - laweciarz kupuje tokeny (przedpłata); klient płaci laweciarzowi normalnie całą kwotę
+ * - ODBLOKOWANIE (przyjęcie) zlecenia kosztuje stałe 50 tokenów, niezależnie od ceny kursu
+ * - 100 tokenów na start dopiero po weryfikacji: NIP/OC + zdjęcie naklejki holuj! na lawecie
+ * - bez tokenów laweciarz nie przyjmie zlecenia
+ * - zwrot tokenów, gdy klient anuluje po przyjęciu (laweciarz nie płaci za cudzą rezygnację)
+ * - anulowanie przez laweciarza po przyjęciu: tokeny nie wracają + kara 50 tokenów + spadek oceny
  */
-export const FEE_PCT = 10;
-export const FEE_MIN = 25;
+export const TOKEN_PLN = 1;
+export const UNLOCK_COST = 50;
+export const START_TOKENS = 100;
 export const CANCEL_PENALTY = 50;
-export const START_BONUS = 100; // demo: saldo startowe po rejestracji laweciarza
-export const TOPUPS = [100, 200, 500];
 
-export const platformFee = (price: number) => Math.max(FEE_MIN, Math.round((price * FEE_PCT) / 100));
+/** Pakiety tokenów (bonus za większy pakiet – zachęta do przedpłaty). */
+export const PACKAGES = [
+  { tokens: 100, price: 100, bonus: 0 },
+  { tokens: 300, price: 300, bonus: 30 },
+  { tokens: 500, price: 500, bonus: 75 },
+];
+
+export const tk = (n: number) => `${Math.round(n).toLocaleString("pl-PL")} tok.`;
