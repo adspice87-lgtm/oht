@@ -520,7 +520,7 @@ function VerificationCard() {
         <li className="flex gap-2">
           {sticker ? <Check className="h-5 w-5 shrink-0 text-ok" /> : <Camera className="h-5 w-5 shrink-0 text-brand-dark" />}
           <span>
-            Naklej naklejkę <b>holuj!</b> na lawetę (tył lub drzwi) i zrób zdjęcie tak, żeby było widać naklejkę i tablicę rejestracyjną.
+            Naklej naklejkę <b>h0luj!</b> na lawetę (tył lub drzwi) i zrób zdjęcie tak, żeby było widać naklejkę i tablicę rejestracyjną.
           </span>
         </li>
         <li className="flex gap-2">

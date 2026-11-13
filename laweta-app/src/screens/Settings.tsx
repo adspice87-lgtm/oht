@@ -66,7 +66,7 @@ export default function Settings({
             <Truck className="h-8 w-8 text-brand" />
             <h2 className="mt-2 text-xl font-extrabold">Masz lawetę? Zostań laweciarzem</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Zlecenia z okolicy prosto na telefon, bez wydawania na Google Ads. Włączasz dyżur, gdy pracujesz. Płacisz tylko za zlecenie, które bierzesz: {tk(UNLOCK_COST)} (1 token = 1 zł). Na start {START_TOKENS} tokenów gratis po weryfikacji i naklejeniu naklejki holuj!.
+              Zlecenia z okolicy prosto na telefon, bez wydawania na Google Ads. Włączasz dyżur, gdy pracujesz. Płacisz tylko za zlecenie, które bierzesz: {tk(UNLOCK_COST)} (1 token = 1 zł). Na start {START_TOKENS} tokenów gratis po weryfikacji i naklejeniu naklejki h0luj!.
             </p>
             <button className="btn-primary mt-4 w-full" onClick={() => setOnboarding(true)}>
               Zostań laweciarzem
@@ -154,7 +154,7 @@ function DriverOnboarding({ onDone }: { onDone: () => void }) {
       <label className="flex items-start gap-3 rounded-xl bg-paper p-3 text-sm dark:bg-ink-3">
         <input id="op-agree" type="checkbox" className="mt-1 h-5 w-5 accent-[#FF7A00]" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
         <span>
-          Akceptuję regulamin: odblokowanie każdego zlecenia kosztuje {tk(UNLOCK_COST)} (1 token = 1 zł), kara {tk(CANCEL_PENALTY)} za anulowanie po przyjęciu, kontakt z klientem tylko przez aplikację, naklejka holuj! na lawecie.
+          Akceptuję regulamin: odblokowanie każdego zlecenia kosztuje {tk(UNLOCK_COST)} (1 token = 1 zł), kara {tk(CANCEL_PENALTY)} za anulowanie po przyjęciu, kontakt z klientem tylko przez aplikację, naklejka h0luj! na lawecie.
         </span>
       </label>
       <button className="btn-primary w-full" disabled={!ok}>
